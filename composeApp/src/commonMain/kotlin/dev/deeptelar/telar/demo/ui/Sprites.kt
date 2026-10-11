@@ -45,6 +45,18 @@ object Sprites {
         "..ccc..",
     )
 
+    /** A medal on its ribbon. `r` is the ribbon, and the disc is `y` with `c` in its middle. */
+    val medal = Sprite(
+        "rr...rr",
+        ".rr.rr.",
+        "..rrr..",
+        "..yyy..",
+        ".yyyyy.",
+        ".yycyy.",
+        ".yyyyy.",
+        "..yyy..",
+    )
+
     /** The slice at the size of a status light. */
     val miniSlice = Sprite(
         "ccccccc",

@@ -20,6 +20,7 @@ import dev.deeptelar.telar.demo.kitchen.shift
 import dev.deeptelar.telar.demo.kitchen.soloChef
 import dev.deeptelar.telar.demo.ui.Bake
 import dev.deeptelar.telar.demo.ui.KitchenController
+import dev.deeptelar.telar.demo.ui.Medal
 import dev.deeptelar.telar.demo.ui.PlayedShift
 import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.bake
@@ -191,48 +192,69 @@ class KitchenRushTest {
     }
 
     @Test
-    fun theGoalsAreReachedByBetterBoards() = runTest {
+    fun theMedalsOfTheLunchRushAreWonByDifferentBoards() = runTest {
         val kitchen = kitchen()
 
-        fun reached() = kitchen.goals.map { it.second }
+        fun won() = kitchen.goals.map { it.second }
+        assertEquals(listOf(Medal.Right, Medal.Cheap, Medal.Small), kitchen.goals.map { it.first.medal })
+        assertEquals(
+            listOf("Serve every order right and on time.", "Do it for fewer than 4,000 tokens.", "Do it with one station."),
+            kitchen.goals.map { it.first.text },
+        )
+        assertEquals(1100, Rush.Lunch.points)
 
-        assertEquals(listOf(false, false, false), reached())
+        assertEquals(listOf(false, false, false), won())
+        assertEquals(listOf(null, null, null), Medal.entries.map(kitchen::best))
         listOf(
+            // A board that gets orders wrong wins nothing, however small or cheap it is.
             Blueprint.FIRST to listOf(false, false, false),
             boardWith(PieceKind.READER) to listOf(false, false, false),
-            boardWith(PieceKind.BOOK_READER) to listOf(true, false, false),
-            SORTED_BOARD to listOf(true, true, false),
+            // One reader with the book is the smallest board that serves every order, and the one that costs the most.
+            boardWith(PieceKind.BOOK_READER) to listOf(true, false, true),
+            // One sorter saves a third of the tokens, which is not enough.
+            SORTED_BOARD to listOf(true, false, true),
+            // The cheapest board has five stations.
             BEST_BOARD to listOf(true, true, true),
         ).forEach { (board, expected) ->
             kitchen.load(board)
             kitchen.start()
             advanceUntilIdle()
-            assertEquals(expected, reached(), board.summary)
+            assertEquals(expected, won(), board.summary)
         }
-        // A goal that was reached stays reached, whatever the next board does.
+        // No board wins all three: the cheap one is not small, and the small one is not cheap.
+        assertEquals(listOf(true, true, false), Rush.Lunch.goals.map { it.metBy(kitchen.history.last()) })
+        assertEquals(listOf(true, false, true), Rush.Lunch.goals.map { it.metBy(kitchen.history[2]) })
+        // The best of each measure comes from the shifts that served every order, and the points from all of them.
+        assertEquals(listOf(1100, 3_565, 1), Medal.entries.map(kitchen::best))
+
+        // A medal that was won stays won, whatever the next board does.
         kitchen.load(Blueprint.FIRST)
         kitchen.start()
         advanceUntilIdle()
-        assertEquals(listOf(true, true, true), reached())
+        assertEquals(listOf(true, true, true), won())
+        assertEquals(listOf(1100, 3_565, 1), Medal.entries.map(kitchen::best))
         assertEquals(6, kitchen.history.size)
 
-        // The tokens of a real model are its own, so only the scripted chefs are held to the token goals.
+        // The tokens of a real model are its own, so only the scripted chefs can win the medal for them.
         val real = PlayedShift(Rush.Lunch, BEST_BOARD, "a model", scripted = false, kitchen.history[4].shift)
         assertEquals(listOf(true, false, false), Rush.Lunch.goals.map { it.metBy(real) })
+        assertEquals(5, real.stations)
     }
 
     @Test
-    fun theDinnerRushIsAnotherShiftWithGoalsOfItsOwn() = runTest {
+    fun theDinnerRushIsAnotherShiftWithMedalsOfItsOwn() = runTest {
         val kitchen = kitchen()
         assertEquals(Rush.Lunch, kitchen.rush)
         kitchen.load(BEST_BOARD)
         kitchen.start()
         advanceUntilIdle()
-        assertEquals(listOf(true, true, true), kitchen.goals.map { it.second })
+        assertEquals(listOf(true, true, false), kitchen.goals.map { it.second })
 
-        // What the lunch rush reached does not count for the dinner rush.
+        // What the lunch rush won does not count for the dinner rush.
         kitchen.choose(Rush.Dinner)
-        assertEquals(listOf(false, false), kitchen.goals.map { it.second })
+        assertEquals(listOf(false, false, false), kitchen.goals.map { it.second })
+        assertEquals("Do it with 3 stations or fewer.", kitchen.goals.last().first.text)
+        assertEquals(listOf(null, null, null), Medal.entries.map(kitchen::best))
         assertEquals(Rush.Lunch, kitchen.playingRush)
 
         kitchen.start()
@@ -243,18 +265,31 @@ class KitchenRushTest {
         advanceUntilIdle()
         // The board that reads the lunch rush for the fewest tokens has no place left for the second station of the oven.
         assertEquals(950, kitchen.shift!!.kitchen.score().points)
-        assertEquals(1200, kitchen.shift!!.kitchen.score().orders * 100)
-        assertEquals(listOf(false, false), kitchen.goals.map { it.second })
+        assertEquals(1200, Rush.Dinner.points)
+        assertEquals(listOf(false, false, false), kitchen.goals.map { it.second })
+        assertEquals(listOf(950, null, null), Medal.entries.map(kitchen::best))
 
+        // With a sorter and both stations for the oven every order is on time, for few tokens, on five stations.
         kitchen.load(DINNER_BOARD)
         kitchen.start()
         advanceUntilIdle()
         assertEquals(1200, kitchen.shift!!.kitchen.score().points)
-        assertEquals(listOf(true, true), kitchen.goals.map { it.second })
-        assertEquals(listOf(Rush.Lunch, Rush.Dinner, Rush.Dinner), kitchen.history.map { it.rush })
+        assertEquals(listOf(true, true, false), kitchen.goals.map { it.second })
+        assertEquals(listOf(1200, 3_564, 5), Medal.entries.map(kitchen::best))
+
+        // The small board has one reader for everything. It serves every order too, and pays for it.
+        kitchen.load(SMALL_DINNER_BOARD)
+        kitchen.start()
+        advanceUntilIdle()
+        assertEquals(1200, kitchen.shift!!.kitchen.score().points)
+        assertEquals(5_633, kitchen.shift!!.spent)
+        assertEquals(listOf(true, false, true), Rush.Dinner.goals.map { it.metBy(kitchen.history.last()) })
+        assertEquals(listOf(true, true, true), kitchen.goals.map { it.second })
+        assertEquals(listOf(1200, 3_564, 3), Medal.entries.map(kitchen::best))
+        assertEquals(listOf(Rush.Lunch, Rush.Dinner, Rush.Dinner, Rush.Dinner), kitchen.history.map { it.rush })
 
         kitchen.choose(Rush.Lunch)
-        assertEquals(listOf(true, true, true), kitchen.goals.map { it.second })
+        assertEquals(listOf(true, true, false), kitchen.goals.map { it.second })
     }
 
     @Test

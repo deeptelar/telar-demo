@@ -348,12 +348,19 @@ class KitchenBoardTest {
     }
 
     @Test
-    fun aReaderThatReadsEveryOrderAloneIsTooSlowForSixOrdersAtOnce() = runTest {
-        val end = dinner(boardWith(PieceKind.BOOK_READER).behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN))
+    fun oneReaderForEveryOrderServesTheDinnerRushOnThreeStationsAndPaysForIt() = runTest {
+        val end = dinner(SMALL_DINNER_BOARD)
 
-        // Six orders come in at minute 30, and the last ticket is written at minute 36.
-        assertEquals(1100, end.kitchen.score().points)
-        assertEquals(listOf(11, 12), end.late())
+        // Six orders come in at minute 30, and the reader writes the last ticket at minute 36. It is just enough.
+        assertEquals(1200, end.kitchen.score().points)
+        assertEquals(emptyList(), end.late())
+        assertEquals(3, SMALL_DINNER_BOARD.pieces.size)
+        // Every order is read by the model with the whole book, which a sorter in front of a lookup saves.
+        assertEquals(5_633, end.spent)
+        assertEquals(3_564, dinner(DINNER_BOARD).spent)
+        // Without the expediter the same board is late twice, and without the second oven more often.
+        assertEquals(listOf(4, 12), dinner(boardWith(PieceKind.BOOK_READER).behindTheRail(PieceKind.SECOND_OVEN)).late())
+        assertTrue(dinner(boardWith(PieceKind.BOOK_READER).behindTheRail(PieceKind.EXPEDITER)).late().size > 2)
     }
 
     @Test

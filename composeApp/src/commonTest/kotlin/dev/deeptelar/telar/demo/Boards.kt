@@ -56,3 +56,6 @@ fun Blueprint.behindTheRail(vararg kinds: PieceKind): Blueprint {
 
 /** The board that serves the dinner rush: both stations for the oven, and with the places that are left, one sorter. */
 val DINNER_BOARD: Blueprint = SORTED_BOARD.behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN)
+
+/** The smallest board that serves the dinner rush: one reader that is told everything, and both stations for the oven. */
+val SMALL_DINNER_BOARD: Blueprint = boardWith(PieceKind.BOOK_READER).behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN)

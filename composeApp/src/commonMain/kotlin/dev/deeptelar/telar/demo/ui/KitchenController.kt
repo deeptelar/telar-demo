@@ -34,49 +34,73 @@ import kotlinx.coroutines.launch
  * @property board the board it was played on.
  * @property scripted `true` when no model was asked, so that its tokens are a guess.
  */
-data class PlayedShift(val rush: Rush, val board: Blueprint, val model: String, val scripted: Boolean, val shift: Service)
+data class PlayedShift(val rush: Rush, val board: Blueprint, val model: String, val scripted: Boolean, val shift: Service) {
+    /** `true` when every order was served right and on time, which every medal asks for. */
+    val right: Boolean
+        get() = shift.kitchen.score().let { it.points == it.orders * Score.ON_TIME_POINTS } && shift.kitchen.standing.none { it.outcome == Outcome.OPEN }
 
-/**
- * Something to reach in the bonus stage.
- *
- * @property countsTokens `true` when it is about the tokens of a shift. Those are set for the
- * scripted chefs, whose tokens are the same every time. A real model counts its own.
- */
-class Goal(val text: String, val countsTokens: Boolean, private val reached: (Service) -> Boolean) {
-    fun metBy(played: PlayedShift): Boolean = (played.scripted || !countsTokens) && reached(played.shift)
+    /** The stations on its board. */
+    val stations: Int get() = board.pieces.size
 }
 
-private fun Service.everyOrderOnTime(): Boolean = kitchen.score().let { it.points == it.orders * Score.ON_TIME_POINTS } && kitchen.standing.none { it.outcome == Outcome.OPEN }
+/**
+ * What a shift can win. A board that serves every order has [Right]. The other two pull against each
+ * other: a board that reads for few tokens sorts its orders, and sorting takes stations.
+ */
+enum class Medal(val title: String) { Right("Right"), Cheap("Cheap"), Small("Small") }
 
-private fun everyOrder() = Goal("Serve every order right and on time.", countsTokens = false) { it.everyOrderOnTime() }
-
-private fun forFewerThan(tokens: Int, said: String) =
-    Goal("Do it for fewer than $said tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < tokens }
+/**
+ * A medal of a shift and what it takes.
+ *
+ * [Medal.Cheap] is set for the scripted chefs, whose tokens are the same every time. A real model
+ * counts its own, so its shifts do not win it.
+ */
+class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift) -> Boolean) {
+    fun metBy(played: PlayedShift): Boolean = played.right && (played.scripted || medal != Medal.Cheap) && reached(played)
+}
 
 /**
  * The orders of a shift, which are the same every time it is played.
  *
  * @property orders the kitchen at the start of the shift.
- * @property goals what there is to reach in it, the easiest first.
+ * @property cheap the tokens a shift has to stay under for [Medal.Cheap].
+ * @property small the most stations a board may have for [Medal.Small].
  */
-enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen, val goals: List<Goal>) {
-    /** About reading. Its second goal needs a sorter, and its third needs two. */
+enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen, val cheap: Int, val small: Int) {
+    /** About reading. One reader with the book is the small board, and the cheap one needs two sorters. */
     Lunch(
         "Lunch rush",
         "Twelve orders in 95 minutes. It is about reading: guests change their mind, one table has an allergy, and one order only makes " +
             "sense if you know what another table had.",
         ::lunchRush,
-        listOf(everyOrder(), forFewerThan(5_000, "5,000"), forFewerThan(4_000, "4,000")),
+        cheap = 4_000,
+        small = 1,
     ),
 
-    /** About the oven. Every order on time needs the expediter, the second oven, and readers that work side by side. */
+    /**
+     * About the oven. Every order on time needs the expediter and the second oven. With one reader that
+     * is a board of three stations, and the cheap one has five: a sorter, so that not every order is read by a model.
+     */
     Dinner(
         "Dinner rush",
         "Twelve orders in 75 minutes, most of them in two waves, and not due in the order they come. It is about the oven: one oven that " +
             "takes the tickets as they come is too slow, and the board has only six places.",
         ::dinnerRush,
-        listOf(everyOrder(), forFewerThan(4_000, "4,000")),
+        cheap = 4_000,
+        small = 3,
     ),
+    ;
+
+    /** The points of a shift in which every order that was not cancelled is served right and on time. */
+    val points: Int get() = orders().let { it.at(it.closesAt).score().orders * Score.ON_TIME_POINTS }
+
+    /** The medals of this shift. */
+    val goals: List<Goal> =
+        listOf(
+            Goal(Medal.Right, "Serve every order right and on time.") { true },
+            Goal(Medal.Cheap, "Do it for fewer than ${cheap / 1_000},000 tokens.") { it.shift.spent < cheap },
+            Goal(Medal.Small, if (small == 1) "Do it with one station." else "Do it with $small stations or fewer.") { it.stations <= small },
+        )
 }
 
 /**
@@ -171,8 +195,22 @@ class KitchenController(
 
     private var job: Job? = null
 
-    /** The goals of the chosen shift, with whether a shift of this session reached each. */
+    /** The medals of the chosen shift, with whether a shift of this session won each. */
     val goals: List<Pair<Goal, Boolean>> get() = rush.goals.map { goal -> goal to history.any { it.rush == rush && goal.metBy(it) } }
+
+    /**
+     * The best that the shifts of this session did on what [medal] measures, in the chosen shift: the
+     * most points, or the fewest tokens or stations of a shift that served every order right and on
+     * time. `null` when no shift counts yet.
+     */
+    fun best(medal: Medal): Int? {
+        val played = history.filter { it.rush == rush }
+        return when (medal) {
+            Medal.Right -> played.maxOfOrNull { it.shift.kitchen.score().points }
+            Medal.Cheap -> played.filter { it.right && it.scripted }.minOfOrNull { it.shift.spent }
+            Medal.Small -> played.filter { it.right }.minOfOrNull { it.stations }
+        }
+    }
 
     /** Chooses the orders of the next shift. */
     fun choose(rush: Rush) {

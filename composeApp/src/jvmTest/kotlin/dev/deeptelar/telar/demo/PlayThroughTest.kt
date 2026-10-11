@@ -109,10 +109,10 @@ class PlayThroughTest {
         onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
         assertEquals("lookup", game.kitchen.board.summary)
 
-        // The other shift has other orders and goals of its own.
+        // The other shift has other orders and medals of its own.
         onNodeWithText("DINNER RUSH").performScrollTo().performClick()
         assertEquals(Rush.Dinner, game.kitchen.rush)
-        onNodeWithText("GOALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithText("MEDALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Place 2").performScrollTo().performClick()
         onNodeWithText("SECOND OVEN").performScrollTo().performClick()
         onNodeWithContentDescription("Station lookup").performScrollTo().performClick()

@@ -65,11 +65,11 @@ fun dinnerRush(): Kitchen =
                     11,
                     table = 11,
                     placedAt = 30,
-                    dueAt = 52,
+                    dueAt = 54,
                     text = "A pepperoni with extra cheese and no tomato.",
                     wanted = listOf(MOZZARELLA, MOZZARELLA, PEPPERONI),
                 ),
-                Order(12, table = 12, placedAt = 30, dueAt = 46, text = "The same as table 5 had.", wanted = listOf(TOMATO, MOZZARELLA)),
+                Order(12, table = 12, placedAt = 30, dueAt = 48, text = "The same as table 5 had.", wanted = listOf(TOMATO, MOZZARELLA)),
             ),
         changes =
             listOf(

@@ -174,26 +174,42 @@ private fun Hand(controller: KitchenController) {
     }
 }
 
-/** What there is to reach, and what the shifts of this session have reached. */
+/** The medals of the chosen shift: what each takes, and the best the shifts of this session did on it. */
 @Composable
 private fun Goals(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     val goals = controller.goals
-    Panel("Goals / ${controller.rush.title}", modifier, trailing = { Label("${goals.count { it.second }} of ${goals.size}") }) {
+    Panel("Medals / ${controller.rush.title}", modifier, trailing = { Label("${goals.count { it.second }} of ${goals.size}") }) {
         goals.forEach { (goal, met) ->
             Row(
                 Modifier.semantics(mergeDescendants = true) { contentDescription = "${goal.text} ${if (met) "Reached" else "Open"}" },
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Label(if (met) "[x]" else "[ ]", Modifier.padding(top = 4.dp), color = if (met) colors.yellow else colors.dim)
-                Body(goal.text, color = if (met) colors.ink else colors.dim)
+                PixelArt(Sprites.medal, Modifier.padding(top = 2.dp), pixel = 3.dp, tint = if (met) Color.Unspecified else colors.line)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Label(goal.medal.title, color = if (met) colors.yellow else colors.dim)
+                    Body(goal.text, color = if (met) colors.ink else colors.dim)
+                    controller.best(goal.medal)?.let { best -> Label("your best: " + goal.medal.said(best, controller.rush)) }
+                }
             }
         }
+        Body(
+            "Cheap and Small pull against each other: a board that reads for few tokens sorts its orders, and sorting takes stations.",
+            color = colors.dim,
+        )
         if (!controller.scripted) {
-            Body("The token goals are for the scripted chefs, whose tokens are the same every time. A real model counts its own: compare your shifts.", color = colors.dim)
+            Body("Cheap is for the scripted chefs, whose tokens are the same every time. A real model counts its own: compare your shifts.", color = colors.dim)
         }
     }
 }
+
+/** [best] in the words of what this medal measures. */
+private fun Medal.said(best: Int, rush: Rush): String =
+    when (this) {
+        Medal.Right -> "$best of ${rush.points} points"
+        Medal.Cheap -> "${best.grouped()} tokens"
+        Medal.Small -> if (best == 1) "1 station" else "$best stations"
+    }
 
 @Composable
 private fun Waiting() {
@@ -393,7 +409,8 @@ private fun Result(controller: KitchenController, shift: BoardShift) {
     Panel("Shift over / ${rush.title} / ${controller.playing.summary}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
         // What each station cost is in the panel of the stations.
         shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
-        Spec("goals", "${rush.goals.count { it.metBy(played) }} of ${rush.goals.size} reached on this board")
+        val won = rush.goals.filter { it.metBy(played) }.map { it.medal.title.lowercase() }
+        Spec("medals", if (won.isEmpty()) "none on this board" else "${won.joinToString(" and ")} on this board")
     }
 }
 
