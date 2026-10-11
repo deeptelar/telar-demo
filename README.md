@@ -44,28 +44,40 @@ that runs.
 
 ## Bonus stage: Kitchen rush
 
-![The kitchen in the middle of a shift: three stations, and an oven that is full](docs/kitchen.png)
+![The board with two sorters, in the middle of a shift](docs/kitchen.png)
 
-A pizzeria whose chefs are graphs works through one shift: twelve orders in 95 kitchen minutes,
-with orders that change and get cancelled and an oven with two places. The orders are the same
-every time. What you choose is how the kitchen is built:
+A puzzle. A pizzeria works through one shift: twelve orders in 95 kitchen minutes. Guests change
+their mind, one table has an allergy, and one order only makes sense if you know what another
+table had. The kitchen makes exactly what a ticket says, and you draw how an order becomes a
+ticket: stations on a board, and arrows between them.
 
-| Kitchen | Who does what |
-|---|---|
-| Solo chef | One agent has every tool and does everything. It is sent the whole conversation with every answer. |
-| The line | Three stations work at the same time, as nodes that run in parallel. The model only reads the orders and writes a ticket for each. Plain code makes and bakes the pizzas. |
-| The line, a model at every station | The same three stations with the model at each, asked with what it needs to know now. |
+| Station | What it does | What it costs |
+|---|---|---|
+| Menu lookup | Plain code. Finds the name of a menu pizza in the order and writes that pizza down. | Nothing |
+| Sorter: only a menu pizza? | Plain code. Sends an order one of two ways. | Nothing |
+| Sorter: about something earlier? | Plain code. Yes when the order names a table, or says "same", "another" or "again". | Nothing |
+| Reader | A model reads the order, and only the order. | Tokens, and a minute for each order |
+| Reader with the book | A model reads the order with everything the guests said before. | More tokens with every order |
 
-The shift has two limits, the clock and a token budget, and it is measured on the orders served in
-time and on the tokens used. The shifts you played are listed side by side, so you can run the same
-orders in another kitchen or with another model and compare.
+The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
+arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
+(`START`) to the kitchen (`END`). A board that cannot run says why before the shift starts, and
+what the game does not check itself is reported by Telar when the graph is compiled.
 
-Without a key the chefs are scripted and the token counts are a guess. With a real model under
-Options, the tokens are the ones the service reports, and a shift costs about 10,000 tokens on the
-line and up to 150,000 for the solo chef.
+The board you start with sends every order to the menu lookup. It costs no tokens and gets most
+orders wrong. After a shift every order shows the way it took and the ticket it got, so you can see
+which station failed it. There are three goals: serve every order right and on time, then do it
+for fewer than 5,000 tokens, then for fewer than 4,000. The orders are the same every time, and the
+shifts you played are listed side by side.
 
-The kitchen is the [kitchen sample](https://deeptelar.github.io/telar/samples.html) of Telar,
-copied into `kitchen/`. There it runs from the command line.
+Without a key the readers are scripted: the one with the book is always right, and the one without
+it cannot know what it was not told. Their token counts are a guess from the length of the text,
+the same every time, and the token goals are set for them. With a real model under Options every
+reader asks that model, the tokens are the ones the service reports, and the shift stops at a
+token budget.
+
+The kitchen behind the board is the [kitchen sample](https://deeptelar.github.io/telar/samples.html)
+of Telar, copied into `kitchen/`. The board is not part of the sample.
 
 ## Play
 
@@ -126,15 +138,17 @@ and the Android app have no such limit.
 ## Layout
 
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
-- `kitchen/`: the bonus stage: the kitchen as plain code, the fixed shift, and the two graphs that
-  run it, `SoloChef.kt` and `Line.kt`
+- `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
+  `Blueprint.kt` is the board a player draws, and `BoardShift.kt` turns it into the graph that
+  runs a shift
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
 - `storage/`: which checkpointer of the library each platform uses, and `KeyValueStore` for the
   settings and the cleared stages
 - `ui/`: the screens, the board, `Game.kt`, which runs the graphs of the stages for them, and
-  `KitchenController.kt`, which runs a shift of the bonus stage
+  `KitchenController.kt`, which holds the board of the bonus stage and runs a shift on it.
+  `KitchenBoard.kt` draws that board
 
 ## Tests
 
