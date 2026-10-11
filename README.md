@@ -44,28 +44,86 @@ that runs.
 
 ## Bonus stage: Kitchen rush
 
-![The kitchen in the middle of a shift: three stations, and an oven that is full](docs/kitchen.png)
+![The board with two sorters, in the middle of a shift](docs/kitchen.png)
 
-A pizzeria whose chefs are graphs works through one shift: twelve orders in 95 kitchen minutes,
-with orders that change and get cancelled and an oven with two places. The orders are the same
-every time. What you choose is how the kitchen is built:
+A puzzle. A pizzeria works through a shift, and the kitchen makes exactly what a ticket says. You
+draw how an order becomes a ticket and reaches the oven: stations on a board with six places, and
+arrows between them.
 
-| Kitchen | Who does what |
-|---|---|
-| Solo chef | One agent has every tool and does everything. It is sent the whole conversation with every answer. |
-| The line | Three stations work at the same time, as nodes that run in parallel. The model only reads the orders and writes a ticket for each. Plain code makes and bakes the pizzas. |
-| The line, a model at every station | The same three stations with the model at each, asked with what it needs to know now. |
+There are nine shifts. The first seven are short, four to eight orders each, and each brings one
+station that the shifts before it did not have and that it cannot be won without. The last two are
+the rushes, with every station on offer. No shift is locked, and the board stays when you move on,
+so a shift starts with the board that won the one before.
 
-The shift has two limits, the clock and a token budget, and it is measured on the orders served in
-time and on the tokens used. The shifts you played are listed side by side, so you can run the same
-orders in another kitchen or with another model and compare.
+| Shift | New station | What it is about |
+|---|---|---|
+| 1. First orders | Menu lookup | Four pizzas from the menu. Placing a station and drawing its arrows. |
+| 2. Wishes | Reader | Guests want a pizza changed, which the lookup does not read. |
+| 3. Sorting | Sorter: only a menu pizza? | Most orders need no model. The first medal for few tokens. |
+| 4. The book | Reader with the book | Orders that only make sense with what was said before. |
+| 5. Looking back | Sorter: about something earlier? | The book costs more with every order, so only the orders that need it go there. |
+| 6. Urgent | Expediter | Orders that are not due in the order they come. |
+| 7. Two ovens | Second oven | More pizzas at once than one oven can bake in time. |
+| 8. Lunch rush | | Twelve orders, about reading. Guests change their mind, one table has an allergy, and one order only makes sense if you know what another table had. |
+| 9. Dinner rush | | Twelve orders in two waves, about the oven. One oven that takes the tickets as they arrive is too slow. |
 
-Without a key the chefs are scripted and the token counts are a guess. With a real model under
-Options, the tokens are the ones the service reports, and a shift costs about 10,000 tokens on the
-line and up to 150,000 for the solo chef.
+| Station | What it does | What it costs |
+|---|---|---|
+| Menu lookup | Plain code. Finds the name of a menu pizza in the order and writes that pizza down. | Nothing |
+| Sorter: only a menu pizza? | Plain code. Sends an order one of two ways. | Nothing |
+| Sorter: about something earlier? | Plain code. Yes when the order names a table, or says "same", "another" or "again". | Nothing |
+| Reader | A model reads the order, and only the order. | Tokens, and a minute for each order |
+| Reader with the book | A model reads the order with everything the guests said before. | More tokens with every order |
+| Expediter | Plain code. Writes on the ticket when the order is due, and the kitchen takes those tickets first, the one that is due soonest before the others. | A place on the board |
+| Second oven | Two more places and a chef of its own, for the pizzas of the orders that pass it. | A place on the board |
 
-The kitchen is the [kitchen sample](https://deeptelar.github.io/telar/samples.html) of Telar,
-copied into `kitchen/`. There it runs from the command line.
+The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
+arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
+(`START`) to the kitchen (`END`). A board that cannot run says why before the shift starts, and
+what the game does not check itself is reported by Telar when the graph is compiled.
+
+The orders of a shift are the same every time, and they are listed before it starts, with what
+the guests say later. Under each order is the way it takes across the board as you have drawn it.
+Only the sorters decide that way, and they are plain code, so the game knows it without asking a
+model.
+
+After a shift every order shows the way it took and the ticket it got, so you can see which
+station failed it. While the shift runs, the oven shows its places in pixels: a fire under each
+pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
+
+Every shift has a medal for serving every order right and on time. Shifts 3 and 5 have a second
+one for few tokens, and each rush has three, which no board wins together:
+
+| Medal | What it takes | Lunch rush | Dinner rush |
+|---|---|---|---|
+| Right | Every order right and on time | 1100 points | 1200 points |
+| Cheap | That, for few tokens | Fewer than 4,000 | Fewer than 4,000 |
+| Small | That, on few stations | One station | Three stations or fewer |
+
+Cheap and Small pull against each other. One reader with the book reads every order right, which
+is the small board, and it pays for the whole book every time. The cheap board sorts its orders, so
+that a model reads only the ones that need it, and sorting takes stations. In the dinner rush the
+six places are the puzzle as well: every order on time needs the expediter and the second oven, and
+the sorters have to fit in what is left. The panel of the medals shows your best for each, and the
+shifts you played are listed side by side. The medals you won are kept between sessions, with the
+cleared stages.
+
+A board fits in a link. "Copy a link to this board" gives an address that opens the stage with that
+shift chosen and that board drawn, and after a shift the result can be copied with it, to post:
+
+```
+Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens on 5 stations. Can you beat this board?
+https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2
+```
+
+Without a key the readers are scripted: the one with the book is always right, and the one without
+it cannot know what it was not told. Their token counts are a guess from the length of the text,
+the same every time, and the medal for few tokens is set for them. With a real model under
+Options every reader asks that model, the tokens are the ones the service reports, and the shift
+stops at a token budget.
+
+The kitchen behind the board is the [kitchen sample](https://deeptelar.github.io/telar/samples.html)
+of Telar, copied into `kitchen/`. The board is not part of the sample.
 
 ## Play
 
@@ -126,15 +184,18 @@ and the Android app have no such limit.
 ## Layout
 
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
-- `kitchen/`: the bonus stage: the kitchen as plain code, the fixed shift, and the two graphs that
-  run it, `SoloChef.kt` and `Line.kt`
+- `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
+  `Blueprint.kt` is the board a player draws, `BoardShift.kt` turns it into the graph that runs a
+  shift, `Lessons.kt` has the seven short shifts and `DinnerRush.kt` the second rush, and
+  `BoardText.kt` writes a board as the short text that a link carries
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
 - `storage/`: which checkpointer of the library each platform uses, and `KeyValueStore` for the
   settings and the cleared stages
 - `ui/`: the screens, the board, `Game.kt`, which runs the graphs of the stages for them, and
-  `KitchenController.kt`, which runs a shift of the bonus stage
+  `KitchenController.kt`, which holds the board of the bonus stage and runs a shift on it.
+  `KitchenBoard.kt` draws that board, and `KitchenLink.kt` is the link to one
 
 ## Tests
 

@@ -230,8 +230,9 @@ fun StageSelectScreen(game: Game, onKitchen: () -> Unit, onPlay: (Int) -> Unit) 
 
     Panel("Bonus stage", Modifier.fillMaxWidth(), edge = colors.yellow) {
         Body(
-            "Kitchen rush: a pizzeria whose chefs are graphs works through one shift of twelve orders. You build the kitchen, " +
-                "and with a real model under Options you see what each kitchen costs in tokens.",
+            "Kitchen rush: a puzzle. A pizzeria works through a shift, and you draw the graph that turns an order into a ticket, with " +
+                "stations and arrows. Seven short shifts bring one station each, and then come the two rushes: serve every order, for as " +
+                "few tokens and on as few stations as you can.",
         )
         PillButton("Kitchen rush", onKitchen)
     }
@@ -383,9 +384,10 @@ fun OptionsScreen(settings: Settings, game: Game, onSave: (Settings) -> Unit, on
 
     Panel("Save data", Modifier.fillMaxWidth()) {
         Body(
-            "${game.cleared.size} of ${stages.size} stages cleared. Erasing also throws away every run that is waiting at a save point.",
+            "${game.cleared.size} of ${stages.size} stages cleared. Erasing also throws away every run that is waiting at a save point, " +
+                "and the medals of the bonus stage.",
             color = colors.dim,
         )
-        Box { PillButton("Erase progress", game::erase, enabled = game.cleared.isNotEmpty() || game.controllers.any { it.phase != Phase.Ready }) }
+        Box { PillButton("Erase progress", game::erase, enabled = game.cleared.isNotEmpty() || game.hasMedals || game.controllers.any { it.phase != Phase.Ready }) }
     }
 }

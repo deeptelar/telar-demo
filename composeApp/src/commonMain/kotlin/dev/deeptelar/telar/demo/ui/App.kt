@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 import dev.deeptelar.telar.demo.game.stages
+import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.storage.platformCheckpointer
 import dev.deeptelar.telar.demo.storage.platformStore
 
@@ -58,8 +59,12 @@ fun App() {
     val repository = remember { SettingsRepository(store) }
     val httpClient = remember { HttpClient() }
     var loaded by remember { mutableStateOf<Settings?>(null) }
-    var screen by remember { mutableStateOf<Screen>(Screen.Title) }
+    // A link to a board of the bonus stage opens that stage, with the board drawn.
+    val linked = remember { KitchenLink.of(pageFragment()) }
+    var screen by remember { mutableStateOf(if (linked == null) Screen.Title else Screen.Kitchen) }
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
+    val drawn = remember { mutableStateOf(linked?.board ?: Blueprint()) }
+    val chosen = remember { mutableStateOf(linked?.rush ?: Rush.entries.first()) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {
@@ -67,7 +72,7 @@ fun App() {
         // New settings mean a new model, and with it fresh graphs. Cleared stages and saved runs are kept.
         val model = remember(settings) { settings.chatModel(httpClient) }
         val game = remember(model) {
-            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played)
+            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played, drawn = drawn, chosen = chosen)
         }
         GameScreens(game, settings, screen, onNavigate = { screen = it }) { updated ->
             loaded = updated

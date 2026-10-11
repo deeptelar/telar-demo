@@ -162,7 +162,7 @@ fun Board(controller: StageController, modifier: Modifier = Modifier, selected: 
 }
 
 /** A dotted line along [corners] with an arrowhead at its end. */
-private fun DrawScope.arrow(corners: List<Offset>, color: Color, lit: Boolean) {
+internal fun DrawScope.arrow(corners: List<Offset>, color: Color, lit: Boolean) {
     val points = corners.map { Offset(it.x.dp.toPx(), it.y.dp.toPx()) }
     val gap = 6.dp.toPx()
     val radius = (if (lit) 1.6f else 1.1f).dp.toPx()
@@ -235,7 +235,7 @@ private fun Tile(node: String, look: TileLook, router: Boolean, selected: Boolea
 }
 
 @Composable
-private fun RouterMark(color: Color) {
+internal fun RouterMark(color: Color) {
     Canvas(Modifier.size(7.dp)) {
         val unit = size.width / 2
         listOf(Offset(unit, 0f), Offset(0f, unit), Offset(size.width, unit), Offset(unit, size.height)).forEach {

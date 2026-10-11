@@ -205,7 +205,7 @@ private fun Kitchen.nextMove(known: Kitchen): Pair<String, JsonObject>? {
     return null
 }
 
-private fun guessedUsage(request: ChatRequest, calls: List<ToolCall>): TokenUsage =
+internal fun guessedUsage(request: ChatRequest, calls: List<ToolCall>): TokenUsage =
     TokenUsage(
         request.length() / 4,
         calls.sumOf { it.length() } / 4,
@@ -217,3 +217,48 @@ private fun ChatRequest.length(): Int =
         messages.sumOf { message -> message.text.length + ((message as? ChatMessage.Assistant)?.toolCalls?.sumOf { it.length() } ?: 0) }
 
 private fun ToolCall.length(): Int = name.length + input.toString().length
+
+/**
+ * Offline stand-ins for the models of a board, one for each kind of station that asks a model. They
+ * know what every order of [kitchen] means, and each answers with what a model at its station could
+ * know: the reader with the book is told everything, so it is right. The reader that is told one
+ * order is right about an order that says everything itself. It cannot know what another table
+ * had, so it writes no ticket for an order that names no pizza, and it has not heard of an allergy
+ * that the order does not mention.
+ */
+fun scriptedStations(kitchen: Kitchen = lunchRush()): (PieceKind) -> ChatModel =
+    { kind -> scriptedSlipReader(kitchen, knowsTheBook = kind == PieceKind.BOOK_READER) }
+
+private fun scriptedSlipReader(kitchen: Kitchen, knowsTheBook: Boolean): ChatModel =
+    ChatModel { request ->
+        val line = request.messages.last().text.lines().last { SLIP.containsMatchIn(it) }
+        val number = SLIP.find(line)!!.groupValues[1].toInt()
+        val order = kitchen.orders.first { it.number == number }
+        // The last thing the guest said that the slip tells, or else the order as it was placed.
+        val wanted = kitchen.changes.lastOrNull { it.order == number && it.wanted != null && it.text in line }?.wanted ?: order.wanted
+        val named = MENU.entries.firstOrNull { it.key in order.text.lowercase() }?.value
+        val read =
+            when {
+                knowsTheBook -> wanted
+                named == null -> null
+                order.never.isNotEmpty() && "allerg" !in order.text -> named
+                else -> wanted
+            }
+        val calls =
+            listOfNotNull(
+                read?.let { toppings ->
+                    ToolCall(
+                        "ticket-$number",
+                        "write_ticket",
+                        buildJsonObject {
+                            put("order", number)
+                            putJsonArray("toppings") { toppings.forEach { add(it.word) } }
+                        },
+                    )
+                },
+            )
+        val said = if (read == null) "The order does not say which pizza is meant." else ""
+        ChatResponse(ChatMessage.Assistant(said, toolCalls = calls), guessedUsage(request, calls).let { it.copy(outputTokens = it.outputTokens + said.length / 4) })
+    }
+
+private val SLIP = Regex("""^Order #(\d+), table \d+: """)

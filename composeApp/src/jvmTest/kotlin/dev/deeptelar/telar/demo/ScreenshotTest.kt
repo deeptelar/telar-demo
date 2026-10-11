@@ -12,12 +12,14 @@ import org.jetbrains.skia.EncodedImageFormat
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.MemoryCheckpointer
 import dev.deeptelar.telar.demo.game.scriptedModel
+import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
-import dev.deeptelar.telar.demo.ui.KitchenLayout
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.PizzaTheme
+import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.Screen
 import dev.deeptelar.telar.demo.ui.Settings
 import java.io.File
@@ -123,21 +125,42 @@ class ScreenshotTest {
 
     @Test
     fun theKitchenRushCanBeDrawn() {
-        shoot("kitchen", Screen.Kitchen)
-
-        // The line, in the rush: four orders came in together.
+        // The first shift as a player finds it, and after it was won.
+        shoot("kitchen", Screen.Kitchen, height = 1300)
+        game.kitchen.load(Blueprint.FIRST)
         game.kitchen.start()
-        scope.advanceTimeBy(12_500)
+        scope.advanceUntilIdle()
+        shoot("kitchen-first-over", Screen.Kitchen, height = 1900)
+
+        // The lunch rush, and the stations an empty place offers in it.
+        game.kitchen.choose(Rush.Lunch)
+        shoot("kitchen-lunch", Screen.Kitchen, height = 2100)
+        game.kitchen.tapSlot(3)
+        shoot("kitchen-picking", Screen.Kitchen, height = 1500)
+
+        // A board with two sorters, with the arrows of one of them being drawn.
+        game.kitchen.load(BEST_BOARD)
+        game.kitchen.tap("looksBack")
+        game.kitchen.redraw(Exit.NO)
+        shoot("kitchen-drawing", Screen.Kitchen, height = 1200)
+        game.kitchen.tap("reader")
+
+        // In the rush: four orders came in together.
+        game.kitchen.start()
+        scope.advanceTimeBy(16_000)
         shoot("kitchen-running", Screen.Kitchen, height = 2000)
         scope.advanceUntilIdle()
         shoot("kitchen-over", Screen.Kitchen, height = 2300)
+        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 5600)
 
-        // The same orders with one chef, to compare.
-        game.kitchen.choose(KitchenLayout.Solo)
+        // The dinner rush, with both ovens at work in the second wave.
+        game.kitchen.choose(Rush.Dinner)
+        game.kitchen.load(DINNER_BOARD)
         game.kitchen.start()
+        scope.advanceTimeBy(21_500)
+        shoot("kitchen-dinner", Screen.Kitchen, height = 2300)
         scope.advanceUntilIdle()
-        shoot("kitchen-solo-over", Screen.Kitchen, height = 2300)
-        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 4200)
+        shoot("kitchen-dinner-over", Screen.Kitchen, height = 2300)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */
