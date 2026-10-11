@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -41,6 +43,20 @@ import dev.deeptelar.telar.demo.llm.ClaudeModel
 import dev.deeptelar.telar.demo.llm.ClaudeModels
 
 private const val TITLE = "Pixel Pizza"
+
+/** The library the game is built with, and shows. */
+private const val TELAR = "https://github.com/deeptelar/telar"
+
+/**
+ * The way from the game to the library it is built with. It is on every screen: in a corner of the
+ * title screen and at the end of every page.
+ */
+@Composable
+fun BuiltWithTelar() {
+    val uriHandler = LocalUriHandler.current
+    // A link that is text only, so it is moved out by its padding to line up with the page.
+    PillButton("Built with Telar / GitHub", { uriHandler.openUri(TELAR) }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+}
 
 /** The first thing a player sees: the name on a dot-matrix display and one button. */
 @Composable
@@ -87,7 +103,7 @@ fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onOptions: 
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Label("built with Telar")
+            BuiltWithTelar()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (roomForModel) Label("model $modelLabel")
                 PillButton("Options", onOptions, emphasis = Emphasis.Quiet)
