@@ -79,6 +79,7 @@ class PlayThroughTest {
 
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
         onNodeWithText("400 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
         onNodeWithText("1 / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
 

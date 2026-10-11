@@ -66,7 +66,8 @@ what the game does not check itself is reported by Telar when the graph is compi
 
 The board you start with sends every order to the menu lookup. It costs no tokens and gets most
 orders wrong. After a shift every order shows the way it took and the ticket it got, so you can see
-which station failed it. There are three goals: serve every order right and on time, then do it
+which station failed it. While the shift runs, the oven shows its two places in pixels: a fire under
+each pizza, and a bar that fills until the pizza is baked, and then until it is burnt. There are three goals: serve every order right and on time, then do it
 for fewer than 5,000 tokens, then for fewer than 4,000. The orders are the same every time, and the
 shifts you played are listed side by side.
 

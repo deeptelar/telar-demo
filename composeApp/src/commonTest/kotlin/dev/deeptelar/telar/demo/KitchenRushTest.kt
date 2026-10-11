@@ -18,9 +18,13 @@ import dev.deeptelar.telar.demo.kitchen.scriptedChef
 import dev.deeptelar.telar.demo.kitchen.scriptedReader
 import dev.deeptelar.telar.demo.kitchen.shift
 import dev.deeptelar.telar.demo.kitchen.soloChef
+import dev.deeptelar.telar.demo.ui.Bake
 import dev.deeptelar.telar.demo.ui.KITCHEN_GOALS
 import dev.deeptelar.telar.demo.ui.KitchenController
 import dev.deeptelar.telar.demo.ui.PlayedShift
+import dev.deeptelar.telar.demo.ui.bake
+import dev.deeptelar.telar.demo.ui.bakeText
+import dev.deeptelar.telar.demo.ui.ovenPlaces
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -309,5 +313,18 @@ class KitchenRushTest {
         advanceUntilIdle()
 
         assertEquals(listOf("scripted", "another"), second.history.map { it.model })
+    }
+
+    @Test
+    fun aPizzaKeepsItsPlaceInTheOvenAndIsBakedAfterSixMinutes() {
+        assertEquals(listOf("P1", null), ovenPlaces(listOf(null, null), listOf("P1")))
+        assertEquals(listOf("P1", "P2"), ovenPlaces(listOf("P1", null), listOf("P1", "P2")))
+        // P1 is taken out. P2 stays where it is, and the next pizza gets the place that is free.
+        assertEquals(listOf(null, "P2"), ovenPlaces(listOf("P1", "P2"), listOf("P2")))
+        assertEquals(listOf("P3", "P2"), ovenPlaces(listOf(null, "P2"), listOf("P2", "P3")))
+        assertEquals(listOf("P3", "P2"), ovenPlaces(listOf("P3", "P2"), listOf("P2", "P3", "P4")))
+
+        assertEquals(listOf(Bake.BAKING, Bake.BAKING, Bake.BAKED, Bake.BAKED, Bake.BURNT), listOf(0, 5, 6, 12, 13).map(::bake))
+        assertEquals(listOf("5 of 6 minutes", "baked, take it out", "burnt"), listOf(5, 6, 13).map(::bakeText))
     }
 }

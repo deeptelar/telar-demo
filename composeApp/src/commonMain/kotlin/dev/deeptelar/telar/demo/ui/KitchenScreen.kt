@@ -215,7 +215,7 @@ private fun ShiftPanels(controller: KitchenController, shift: BoardShift) {
     if (controller.finished) Result(controller, shift)
     Meters(controller, shift)
     Stations(controller, shift)
-    Floor(shift.kitchen)
+    Floor(shift.kitchen, controller.running)
     Log(shift)
     Rail(controller, shift)
 }
@@ -272,9 +272,9 @@ private fun Stations(controller: KitchenController, shift: BoardShift) {
     }
 }
 
-/** The pizzas that are in the kitchen: raw on the counter, in the oven, and baked on the pass. */
+/** The pizzas that are in the kitchen: raw on the counter, in the oven with its fire, and baked on the pass. */
 @Composable
-private fun Floor(kitchen: Kitchen) {
+private fun Floor(kitchen: Kitchen, running: Boolean) {
     val colors = Theme.colors
     val counter = kitchen.made.filter { it.place == Place.COUNTER }
     val pass = kitchen.made.filter { it.place == Place.PASS }
@@ -283,14 +283,8 @@ private fun Floor(kitchen: Kitchen) {
             counter.forEach { PizzaRow(it, "raw", colors.dim) }
         }
         Area("oven", "${kitchen.oven.size} of ${Kitchen.OVEN_SLOTS} places") {
-            kitchen.oven.forEach { pizza ->
-                val minutes = kitchen.minute - pizza.inOvenSince!!
-                when {
-                    minutes > Kitchen.BURNT_AFTER -> PizzaRow(pizza, "burnt", colors.red)
-                    minutes >= Kitchen.BAKED_AFTER -> PizzaRow(pizza, "baked, take it out", colors.yellow)
-                    else -> PizzaRow(pizza, "$minutes of ${Kitchen.BAKED_AFTER} minutes", colors.ink)
-                }
-            }
+            PixelOven(kitchen, lit = running, Modifier.fillMaxWidth().padding(start = 88.dp, top = 4.dp))
+            Label("baked after ${Kitchen.BAKED_AFTER} minutes, burnt after ${Kitchen.BURNT_AFTER}", Modifier.padding(start = 88.dp, bottom = 4.dp))
         }
         Area("pass", if (pass.isEmpty()) "nothing" else "${pass.size} out of the oven") {
             pass.forEach { PizzaRow(it, if (it.good) "baked" else "spoilt", if (it.good) colors.ink else colors.red) }
