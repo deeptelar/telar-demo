@@ -12,6 +12,7 @@ import org.jetbrains.skia.EncodedImageFormat
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.MemoryCheckpointer
 import dev.deeptelar.telar.demo.game.scriptedModel
+import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
@@ -124,8 +125,16 @@ class ScreenshotTest {
 
     @Test
     fun theKitchenRushCanBeDrawn() {
-        // The board a player finds, and the stations an empty place offers.
-        shoot("kitchen", Screen.Kitchen, height = 2100)
+        // The first shift as a player finds it, and after it was won.
+        shoot("kitchen", Screen.Kitchen, height = 1300)
+        game.kitchen.load(Blueprint.FIRST)
+        game.kitchen.start()
+        scope.advanceUntilIdle()
+        shoot("kitchen-first-over", Screen.Kitchen, height = 1900)
+
+        // The lunch rush, and the stations an empty place offers in it.
+        game.kitchen.choose(Rush.Lunch)
+        shoot("kitchen-lunch", Screen.Kitchen, height = 2100)
         game.kitchen.tapSlot(3)
         shoot("kitchen-picking", Screen.Kitchen, height = 1500)
 

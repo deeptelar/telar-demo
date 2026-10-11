@@ -36,7 +36,7 @@ data class KitchenLink(val rush: Rush, val board: Blueprint) {
  * Its points come first, because a board that is cheap or small and serves the wrong pizza is no result.
  */
 fun PlayedShift.told(page: String = DEMO_ADDRESS): String {
-    val tokens = shift.spent.toString().reversed().chunked(3).joinToString(",").reversed()
+    val tokens = shift.spent.grouped()
     val stations = if (this.stations == 1) "1 station" else "${this.stations} stations"
     val counted = if (scripted) "$tokens tokens" else "$tokens tokens of $model"
     return "Pixel Pizza, ${rush.title.lowercase()}: ${shift.kitchen.score().points} of ${rush.points} points for $counted on $stations. " +

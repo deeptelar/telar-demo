@@ -311,7 +311,7 @@ class StageController(
 /**
  * The whole game: one controller per stage, and which stages the player has cleared.
  *
- * @param store remembers the cleared stages.
+ * @param store remembers the cleared stages, and the medals of the bonus stage.
  * @param saves keeps the runs of the stages, so that one that paused is still there in the next session.
  * @param realModel the model of the service the player chose, or `null` when the scripted model answers.
  * [model] is never `null`: the stages always have someone to ask.
@@ -329,11 +329,13 @@ class Game(
     realModel: ChatModel? = null,
     modelLabel: String = "scripted",
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
-    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
-    chosen: MutableState<Rush> = mutableStateOf(Rush.Lunch),
+    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint()),
+    chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
+
+    private val medals = mutableStateOf(emptySet<Pair<Rush, Medal>>())
 
     /** The bonus stage. Its chefs are scripted unless the player chose a real model. */
     val kitchen: KitchenController =
@@ -347,6 +349,8 @@ class Game(
             played = played,
             drawn = drawn,
             chosen = chosen,
+            earned = medals,
+            onEarned = ::saveMedals,
         )
 
     val controllers: List<StageController> = stages.map { StageController(it, Desk(model, workMillis), saves, scope, ::markCleared) }
@@ -354,6 +358,8 @@ class Game(
     init {
         scope.launch {
             cleared = store.get(CLEARED).orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toSet()
+            // A medal that was won before this one was read from the store stays won.
+            medals.value = medals.value + store.get(MEDALS).orEmpty().split(',').mapNotNull(::medalOf)
         }
     }
 
@@ -364,14 +370,33 @@ class Game(
         scope.launch { store.set(CLEARED, cleared.sorted().joinToString(",")) }
     }
 
-    /** Forgets the cleared stages and every saved run. */
+    /** Forgets the cleared stages, every saved run, and the medals of the bonus stage. */
     fun erase() {
         controllers.forEach { it.reset() }
         cleared = emptySet()
-        scope.launch { store.remove(CLEARED) }
+        kitchen.forget()
+        scope.launch {
+            store.remove(CLEARED)
+            store.remove(MEDALS)
+        }
+    }
+
+    /** `true` when there is something for [erase] to forget in the bonus stage. */
+    val hasMedals: Boolean get() = medals.value.isNotEmpty()
+
+    private fun saveMedals(won: Set<Pair<Rush, Medal>>) {
+        scope.launch { store.set(MEDALS, won.joinToString(",") { (rush, medal) -> "${rush.name}.${medal.name}" }) }
+    }
+
+    /** A medal as [saveMedals] writes it, or `null` for a shift or a medal that the game no longer has. */
+    private fun medalOf(saved: String): Pair<Rush, Medal>? {
+        val rush = Rush.entries.firstOrNull { it.name == saved.substringBefore('.') } ?: return null
+        val medal = Medal.entries.firstOrNull { it.name == saved.substringAfter('.') } ?: return null
+        return (rush to medal).takeIf { rush.goals.any { it.medal == medal } }
     }
 
     private companion object {
         const val CLEARED = "pixelpizza.cleared"
+        const val MEDALS = "pixelpizza.kitchen.medals"
     }
 }

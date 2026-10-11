@@ -288,7 +288,7 @@ data class Blueprint(
         /** The places of the board a station can stand on. */
         const val SLOTS: Int = 6
 
-        /** The board a player starts with: every order goes to the menu lookup. It costs nothing and gets most orders wrong. */
+        /** The board of the first shift: every order goes to the menu lookup. It costs nothing, and reads the name of a pizza and nothing else. */
         val FIRST: Blueprint =
             Blueprint().place(0, PieceKind.LOOKUP).connect(RAIL, Exit.NEXT, "lookup").connect("lookup", Exit.NEXT, KITCHEN)
     }

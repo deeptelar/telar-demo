@@ -48,7 +48,17 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class KitchenRushTest {
-    private fun TestScope.kitchen(model: ChatModel? = null) = KitchenController(model, "scripted", this, minuteMillis = 100)
+    /** The bonus stage with the lunch rush chosen and the board that sends every order to the lookup. */
+    private fun TestScope.kitchen(model: ChatModel? = null, minuteMillis: Long = 100, stepMillis: Long = 0, label: String = "scripted") =
+        KitchenController(
+            model,
+            label,
+            this,
+            minuteMillis,
+            stepMillis,
+            drawn = mutableStateOf(Blueprint.FIRST),
+            chosen = mutableStateOf(Rush.Lunch),
+        )
 
     @Test
     fun theSoloChefServesTheLunchRush() = runTest {
@@ -297,6 +307,102 @@ class KitchenRushTest {
     }
 
     @Test
+    fun theShiftsComeInAMenuAndEachShortOneBringsAStation() = runTest {
+        val saved = mutableListOf<Set<Pair<Rush, Medal>>>()
+        val earned = mutableStateOf(emptySet<Pair<Rush, Medal>>())
+        val kitchen = KitchenController(null, "scripted", this, minuteMillis = 0, earned = earned, onEarned = { saved += it })
+
+        // A player starts in the first shift, with an empty board and one station to put on it.
+        assertEquals(Rush.Opening, kitchen.rush)
+        assertEquals(Blueprint(), kitchen.board)
+        assertEquals(listOf("The rail has no arrow. Draw one to the station that gets every order first."), kitchen.problems)
+        assertEquals(setOf(PieceKind.LOOKUP), kitchen.rush.offers)
+        assertEquals(
+            listOf(
+                PieceKind.LOOKUP,
+                PieceKind.READER,
+                PieceKind.ONLY_MENU,
+                PieceKind.BOOK_READER,
+                PieceKind.LOOKS_BACK,
+                PieceKind.EXPEDITER,
+                PieceKind.SECOND_OVEN,
+                null,
+                null,
+            ),
+            Rush.entries.map { it.teaches },
+        )
+        // Every shift offers the stations of the ones before it, and the rushes offer all of them.
+        assertEquals(listOf(1, 2, 3, 4, 5, 6, 7, 7, 7), Rush.entries.map { it.offers.size })
+        assertEquals((1..9).toList(), Rush.entries.map { it.number })
+        assertEquals(Rush.Wishes, Rush.Opening.next)
+        assertNull(Rush.Dinner.next)
+        // A short shift has a medal for tokens only where its station saves some.
+        assertEquals(listOf(1, 1, 2, 1, 2, 1, 1, 3, 3), Rush.entries.map { it.goals.size })
+        assertEquals("Do it for fewer than 2,800 tokens.", Rush.LookingBack.goals.last().text)
+        assertEquals(listOf(400, 400, 600, 500, 800, 400, 600, 1100, 1200), Rush.entries.map { it.points })
+
+        // A station of a later shift is not offered, and a board that has one does not start.
+        kitchen.tapSlot(0)
+        kitchen.put(PieceKind.READER)
+        assertEquals(Blueprint(), kitchen.board)
+        kitchen.load(boardWith(PieceKind.READER))
+        assertEquals(listOf("Reader comes in a later shift. Take it off the board, or choose that shift."), kitchen.problems)
+        kitchen.start()
+        assertFalse(kitchen.running)
+        kitchen.choose(Rush.Wishes)
+        assertEquals(emptyList(), kitchen.problems)
+        kitchen.choose(Rush.Opening)
+        assertEquals(1, kitchen.problems.size)
+
+        // Each shift is won on the board of the one before with its new station added.
+        val plainToLookup =
+            Blueprint()
+                .place(0, PieceKind.ONLY_MENU)
+                .place(1, PieceKind.LOOKUP)
+                .place(3, PieceKind.READER)
+                .connect(Blueprint.RAIL, Exit.NEXT, "onlyMenu")
+                .connect("onlyMenu", Exit.YES, "lookup")
+                .connect("onlyMenu", Exit.NO, "reader")
+                .connect("lookup", Exit.NEXT, Blueprint.KITCHEN)
+                .connect("reader", Exit.NEXT, Blueprint.KITCHEN)
+        listOf(
+            Rush.Opening to Blueprint.FIRST,
+            Rush.Wishes to boardWith(PieceKind.READER),
+            Rush.Sorting to plainToLookup,
+            Rush.Book to boardWith(PieceKind.BOOK_READER),
+            Rush.LookingBack to BEST_BOARD,
+            Rush.Urgent to Blueprint.FIRST.behindTheRail(PieceKind.EXPEDITER),
+            Rush.TwoOvens to Blueprint.FIRST.behindTheRail(PieceKind.SECOND_OVEN),
+        ).forEach { (rush, board) ->
+            kitchen.choose(rush)
+            assertTrue(kitchen.goals.none { it.second }, rush.title)
+            kitchen.load(board)
+            assertEquals(emptyList(), kitchen.problems, rush.title)
+            kitchen.start()
+            advanceUntilIdle()
+            assertEquals(rush.points, kitchen.shift!!.kitchen.score().points, rush.title)
+            assertTrue(kitchen.goals.all { it.second }, rush.title)
+            // A short shift is over in less than a minute of the kitchen's clock for each order and a half.
+            assertTrue(kitchen.shift!!.kitchen.minute <= 47, rush.title)
+        }
+        assertEquals(7, kitchen.history.size)
+        assertEquals(9, kitchen.earned.size)
+        assertEquals(kitchen.earned, saved.last())
+        assertEquals(7, saved.size)
+        assertEquals(listOf(true, true), kitchen.medals(Rush.Sorting).map { it.second })
+        assertEquals(listOf(false, false, false), kitchen.medals(Rush.Lunch).map { it.second })
+
+        // The medals are kept outside the controller, and a shift that wins nothing new is not saved again.
+        val again = KitchenController(null, "scripted", this, minuteMillis = 0, earned = earned, onEarned = { saved += it }, chosen = mutableStateOf(Rush.Opening), drawn = mutableStateOf(Blueprint.FIRST))
+        assertEquals(listOf(true), again.goals.map { it.second })
+        again.start()
+        advanceUntilIdle()
+        assertEquals(7, saved.size)
+        again.forget()
+        assertEquals(listOf(false), again.goals.map { it.second })
+    }
+
+    @Test
     fun aLinkCarriesAShiftAndABoardForIt() = runTest {
         val link = KitchenLink(Rush.Dinner, DINNER_BOARD)
         assertEquals("kitchen=dinner.plxbo-413k0k2", link.fragment)
@@ -331,7 +437,7 @@ class KitchenRushTest {
 
     @Test
     fun anOrderIsShownAtTheStationThatHasIt() = runTest {
-        val kitchen = KitchenController(null, "scripted", this, minuteMillis = 0, stepMillis = 100)
+        val kitchen = kitchen(minuteMillis = 0, stepMillis = 100)
         kitchen.load(SORTED_BOARD)
 
         kitchen.start()
@@ -365,7 +471,7 @@ class KitchenRushTest {
 
     @Test
     fun aModelThatFailsEndsTheShiftAndSaysWhy() = runTest {
-        val kitchen = KitchenController(ChatModel { throw ChatModelException("The key is not valid.") }, "broken", this, minuteMillis = 0)
+        val kitchen = kitchen(ChatModel { throw ChatModelException("The key is not valid.") }, minuteMillis = 0, label = "broken")
         assertFalse(kitchen.scripted)
         kitchen.load(boardWith(PieceKind.READER))
 

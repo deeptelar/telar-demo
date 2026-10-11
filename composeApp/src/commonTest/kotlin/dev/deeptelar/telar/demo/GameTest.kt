@@ -20,9 +20,12 @@ import dev.deeptelar.telar.demo.game.HelpDesks
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.demo.game.Ticket
 import dev.deeptelar.telar.demo.game.scriptedModel
+import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
+import dev.deeptelar.telar.demo.ui.Medal
 import dev.deeptelar.telar.demo.ui.Phase
+import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.Tone
 import dev.deeptelar.telar.serialization.CheckpointCodec
 import kotlin.test.Test
@@ -373,6 +376,35 @@ class GameTest {
         advanceUntilIdle()
 
         assertEquals(emptySet(), game().also { advanceUntilIdle() }.cleared)
+    }
+
+    @Test
+    fun theMedalsOfTheBonusStageSurviveANewSessionUntilTheyAreErased() = runTest {
+        val game = game()
+        advanceUntilIdle()
+        assertFalse(game.hasMedals)
+        assertEquals(Rush.Opening, game.kitchen.rush)
+        game.kitchen.load(Blueprint.FIRST)
+        game.kitchen.start()
+        advanceUntilIdle()
+        assertEquals(listOf(true), game.kitchen.goals.map { it.second })
+        assertEquals("Opening.Right", store.get("pixelpizza.kitchen.medals"))
+
+        val reloaded = game()
+        advanceUntilIdle()
+        assertTrue(reloaded.hasMedals)
+        assertEquals(setOf(Rush.Opening to Medal.Right), reloaded.kitchen.earned)
+
+        // A medal that the game no longer has is left out, and the others are kept.
+        store.set("pixelpizza.kitchen.medals", "Opening.Right,Brunch.Right,Opening.Small,Lunch.Small,nonsense")
+        val later = game()
+        advanceUntilIdle()
+        assertEquals(setOf(Rush.Opening to Medal.Right, Rush.Lunch to Medal.Small), later.kitchen.earned)
+
+        later.erase()
+        advanceUntilIdle()
+        assertFalse(later.hasMedals)
+        assertEquals(emptySet(), game().also { advanceUntilIdle() }.kitchen.earned)
     }
 }
 

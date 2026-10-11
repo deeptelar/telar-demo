@@ -76,69 +76,101 @@ class PlayThroughTest {
             }
         }
 
-        // The board a player finds sends every order to the menu lookup.
+        // A player starts in the first shift, with an empty board and one station to put on it.
         onNodeWithText("BONUS: KITCHEN RUSH").performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
-        onNodeWithContentDescription("Board: rail to lookup, lookup to kitchen").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").assertIsDisplayed()
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertIsDisplayed()
+        onNodeWithText("SHIFT 1 OF 9 / NEW STATION: MENU LOOKUP").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Board: no arrows").performScrollTo().assertIsDisplayed()
+        onNodeWithText("The rail has no arrow. Draw one to the station that gets every order first.").performScrollTo().assertIsDisplayed()
+
         // The orders can be read before the shift, each with the way it takes across the board.
-        onNodeWithText("ORDERS / LUNCH RUSH").performScrollTo().assertIsDisplayed()
-        onNodeWithText("The same as table 2 had, but without the extra.").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Order 9 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
-        onNodeWithText("minute 23: Table 5 also wants mushrooms on it.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("ORDERS / FIRST ORDERS").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Order 4 goes rail > stuck").performScrollTo().assertIsDisplayed()
+
+        onNodeWithContentDescription("Place 1").performScrollTo().performClick()
+        onNodeWithText("MENU LOOKUP").performScrollTo().assertIsDisplayed()
+        onNodeWithText("READER").assertDoesNotExist()
+        onNodeWithText("MENU LOOKUP").performClick()
+        onNodeWithText("press the tile it goes to").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
+        onNodeWithContentDescription("Board: lookup to kitchen, rail to lookup").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Order 4 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
+
         // A board fits in a link, which opens the stage with that board drawn.
         onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
-        assertEquals(listOf("https://deeptelar.github.io/telar-demo/#kitchen=lunch.l-----0k"), copied)
+        assertEquals(listOf("https://deeptelar.github.io/telar-demo/#kitchen=opening.l-----0k"), copied)
         onNodeWithText("COPIED").performScrollTo().assertIsDisplayed()
 
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
 
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
-        onNodeWithText("400 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1 / FIRST ORDERS / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Shift 1: First orders, 1 of 1 medals, chosen").performScrollTo().assertIsDisplayed()
         onNodeWithText("COPY THIS RESULT AND A LINK TO ITS BOARD").performScrollTo().performClick()
         assertEquals(
-            "Pixel Pizza, lunch rush: 400 of 1100 points for 0 tokens on 1 station. Can you beat this board? " +
-                "https://deeptelar.github.io/telar-demo/#kitchen=lunch.l-----0k",
+            "Pixel Pizza, first orders: 400 of 400 points for 0 tokens on 1 station. Can you beat this board? " +
+                "https://deeptelar.github.io/telar-demo/#kitchen=opening.l-----0k",
             copied.last(),
         )
-        onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
-        onNodeWithText("1 / LUNCH RUSH / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
 
-        // The lookup goes, and a reader that is told everything takes its place.
+        // The next shift starts with the same board, which reads the name of a pizza and nothing else.
+        onNodeWithText("NEXT SHIFT: WISHES").performScrollTo().performClick()
+        assertEquals(Rush.Wishes, game.kitchen.rush)
+        onNodeWithText("SHIFT 2 OF 9 / NEW STATION: READER").performScrollTo().assertIsDisplayed()
+        onNodeWithText("A pepperoni with extra cheese.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
+        onNodeWithText("100 of 400").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
+        onNodeWithText("NEXT SHIFT: SORTING").assertDoesNotExist()
+
+        // The lookup goes, and the station that is new in this shift takes its place.
         onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
         onNodeWithText("REMOVE THE STATION").performScrollTo().performClick()
         onNodeWithText("The rail has no arrow. Draw one to the station that gets every order first.").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Place 1").performScrollTo().performClick()
-        onNodeWithText("READER WITH THE BOOK").performScrollTo().performClick()
+        onNodeWithText("New in this shift.", substring = true).performScrollTo().performClick()
         onNodeWithText("press the tile it goes to").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
-        onNodeWithContentDescription("Station bookReader").performScrollTo().performClick()
-        onNodeWithContentDescription("Board: bookReader to kitchen, rail to bookReader").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Station reader").performScrollTo().performClick()
+        onNodeWithContentDescription("Board: reader to kitchen, rail to reader").performScrollTo().assertIsDisplayed()
         // The link is of the board as it is drawn now, so the button offers it again.
         onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
-        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=lunch.b-----0k", copied.last())
-
+        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=wishes.r-----0k", copied.last())
         // The orders of the shift that is over say where they would go on the new board.
-        onAllNodesWithText("on the board now: rail > book > kitchen").assertCountEquals(11)
+        onAllNodesWithText("on the board now: rail > reader > kitchen").assertCountEquals(4)
 
         onNodeWithText("SHOW THE CODE OF THIS BOARD").performScrollTo().performClick()
         onNodeWithContentDescription("The code of the board").performScrollTo().assertIsDisplayed()
 
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
-        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
-        onNodeWithText("1100 of 1100").performScrollTo().assertIsDisplayed()
-        onNodeWithText("2 / LUNCH RUSH / BOOK / SCRIPTED").performScrollTo().assertIsDisplayed()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 3 }
+        onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
+        onNodeWithText("3 / WISHES / READER / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
+        onNodeWithText("NEXT SHIFT: SORTING").performScrollTo().assertIsDisplayed()
 
+        // A shift does not start on a board with a station that it does not have yet.
+        onNodeWithContentDescription("Shift 1: First orders, 1 of 1 medals").performScrollTo().performClick()
+        onNodeWithText("Reader comes in a later shift. Take it off the board, or choose that shift.").performScrollTo().assertIsDisplayed()
         // The board of an earlier shift can be taken up again.
         onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
         assertEquals("lookup", game.kitchen.board.summary)
+        assertEquals(emptyList(), game.kitchen.problems)
 
-        // The other shift has other orders and medals of its own.
-        onNodeWithText("DINNER RUSH").performScrollTo().performClick()
+        // No shift is locked. The rushes offer every station and have three medals.
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").performScrollTo().performClick()
         assertEquals(Rush.Dinner, game.kitchen.rush)
+        onNodeWithText("SHIFT 9 OF 9 / EVERY STATION").performScrollTo().assertIsDisplayed()
         onNodeWithText("MEDALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
         onNodeWithText("ORDERS / DINNER RUSH").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Order 12 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
@@ -149,9 +181,9 @@ class PlayThroughTest {
         onNodeWithText("CHANGE").performScrollTo().performClick()
         onNodeWithContentDescription("Station secondOven").performScrollTo().performClick()
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
-        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 3 }
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 4 }
         onNodeWithContentDescription("Oven 2 place 1: empty").performScrollTo().assertIsDisplayed()
-        onNodeWithText("3 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("4 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
 
         // The stage select screen leads here too.
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()

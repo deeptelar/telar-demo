@@ -63,8 +63,8 @@ fun App() {
     val linked = remember { KitchenLink.of(pageFragment()) }
     var screen by remember { mutableStateOf(if (linked == null) Screen.Title else Screen.Kitchen) }
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
-    val drawn = remember { mutableStateOf(linked?.board ?: Blueprint.FIRST) }
-    val chosen = remember { mutableStateOf(linked?.rush ?: Rush.Lunch) }
+    val drawn = remember { mutableStateOf(linked?.board ?: Blueprint()) }
+    val chosen = remember { mutableStateOf(linked?.rush ?: Rush.entries.first()) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {

@@ -18,9 +18,16 @@ import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
+import dev.deeptelar.telar.demo.kitchen.firstOrders
+import dev.deeptelar.telar.demo.kitchen.firstThingsFirst
 import dev.deeptelar.telar.demo.kitchen.kitchen
+import dev.deeptelar.telar.demo.kitchen.lookingBack
 import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.scriptedStations
+import dev.deeptelar.telar.demo.kitchen.sorting
+import dev.deeptelar.telar.demo.kitchen.specialWishes
+import dev.deeptelar.telar.demo.kitchen.theBook
+import dev.deeptelar.telar.demo.kitchen.twoOvens
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -60,13 +67,75 @@ class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift
 }
 
 /**
- * The orders of a shift, which are the same every time it is played.
+ * The orders of a shift, which are the same every time it is played. The first seven are short, and
+ * each needs one station that the shifts before it did not have. The last two are the rushes, with
+ * every station on offer.
  *
  * @property orders the kitchen at the start of the shift.
- * @property cheap the tokens a shift has to stay under for [Medal.Cheap].
- * @property small the most stations a board may have for [Medal.Small].
+ * @property teaches the station that is new in a short shift. `null` for a rush.
+ * @property cheap the tokens a shift has to stay under for [Medal.Cheap], where there is that medal.
+ * @property small the most stations a board may have for [Medal.Small], where there is that medal.
  */
-enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen, val cheap: Int, val small: Int) {
+enum class Rush(
+    val title: String,
+    val detail: String,
+    val orders: () -> Kitchen,
+    val teaches: PieceKind? = null,
+    val cheap: Int? = null,
+    val small: Int? = null,
+) {
+    Opening(
+        "First orders",
+        "Four guests, four pizzas from the menu. Put the menu lookup on a place of the board. Then draw two arrows: from the rail to the " +
+            "lookup, and from the lookup to the kitchen.",
+        ::firstOrders,
+        teaches = PieceKind.LOOKUP,
+    ),
+    Wishes(
+        "Wishes",
+        "Three of four guests want their pizza changed. The lookup reads the name of a pizza and nothing else. The reader is a model: it " +
+            "reads what the guest wants, for tokens and a minute an order.",
+        ::specialWishes,
+        teaches = PieceKind.READER,
+    ),
+    Sorting(
+        "Sorting",
+        "Four of six orders are a pizza of the menu and nothing more, and a model is wasted on them. A sorter sends an order one of two " +
+            "ways: it has an arrow for yes and an arrow for no.",
+        ::sorting,
+        teaches = PieceKind.ONLY_MENU,
+        cheap = 1_000,
+    ),
+    Book(
+        "The book",
+        "Two orders only make sense with what was said before: one table wants what another had, and an allergy holds for every pizza of " +
+            "its table. The reader with the book is told everything the guests said.",
+        ::theBook,
+        teaches = PieceKind.BOOK_READER,
+    ),
+    LookingBack(
+        "Looking back",
+        "The book gets longer with every order, and every order that goes to its reader pays for all of it. The second sorter finds the " +
+            "orders that look back. The others can go to a station that costs less.",
+        ::lookingBack,
+        teaches = PieceKind.LOOKS_BACK,
+        cheap = 2_800,
+    ),
+    Urgent(
+        "Urgent",
+        "Four orders at once, and the two that came last are due first. The kitchen takes its tickets as they come. The expediter writes " +
+            "on a ticket when it is due, and the kitchen takes the most urgent one first.",
+        ::firstThingsFirst,
+        teaches = PieceKind.EXPEDITER,
+    ),
+    TwoOvens(
+        "Two ovens",
+        "Six orders at once, all due at the same minute, and the oven has two places. A second oven bakes the pizzas of the orders that " +
+            "pass it.",
+        ::twoOvens,
+        teaches = PieceKind.SECOND_OVEN,
+    ),
+
     /** About reading. One reader with the book is the small board, and the cheap one needs two sorters. */
     Lunch(
         "Lunch rush",
@@ -91,17 +160,37 @@ enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen
     ),
     ;
 
+    /** Where the shift stands in the menu, from 1. */
+    val number: Int get() = ordinal + 1
+
+    /** The shift after this one. */
+    val next: Rush? get() = entries.getOrNull(ordinal + 1)
+
+    /** The stations a board of this shift may have: the ones the short shifts taught up to here, and all of them in a rush. */
+    val offers: Set<PieceKind>
+        get() = if (teaches == null) PieceKind.entries.toSet() else entries.take(ordinal + 1).mapNotNull { it.teaches }.toSet()
+
     /** The points of a shift in which every order that was not cancelled is served right and on time. */
     val points: Int get() = orders().let { it.at(it.closesAt).score().orders * Score.ON_TIME_POINTS }
 
-    /** The medals of this shift. */
+    /** The medals of this shift. A short shift has no medal for what it does not teach. */
     val goals: List<Goal> =
-        listOf(
+        listOfNotNull(
             Goal(Medal.Right, "Serve every order right and on time.") { true },
-            Goal(Medal.Cheap, "Do it for fewer than ${cheap / 1_000},000 tokens.") { it.shift.spent < cheap },
-            Goal(Medal.Small, if (small == 1) "Do it with one station." else "Do it with $small stations or fewer.") { it.stations <= small },
+            cheap?.let { tokens -> Goal(Medal.Cheap, "Do it for fewer than ${tokens.grouped()} tokens.") { it.shift.spent < tokens } },
+            small?.let { stations ->
+                Goal(Medal.Small, if (stations == 1) "Do it with one station." else "Do it with $stations stations or fewer.") { it.stations <= stations }
+            },
         )
 }
+
+/** 12345 as "12,345". */
+internal fun Int.grouped(): String =
+    toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(",")
+        .reversed()
 
 /**
  * The bonus stage: holds the board the player draws, runs a shift on it, and exposes both as Compose state.
@@ -115,6 +204,8 @@ enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen
  * @param played where the shifts that ran to their end are kept.
  * @param drawn where the board is kept.
  * @param chosen where the shift the player chose is kept.
+ * @param earned where the medals the player has won are kept, each with its shift.
+ * @param onEarned told all of [earned] when a shift wins a medal that was not won before, to save it.
  */
 class KitchenController(
     private val realModel: ChatModel?,
@@ -123,8 +214,10 @@ class KitchenController(
     private val minuteMillis: Long = if (realModel == null) 250 else 40,
     private val stepMillis: Long = 0,
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
-    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
-    chosen: MutableState<Rush> = mutableStateOf(Rush.Lunch),
+    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint()),
+    chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
+    earned: MutableState<Set<Pair<Rush, Medal>>> = mutableStateOf(emptySet()),
+    private val onEarned: (Set<Pair<Rush, Medal>>) -> Unit = {},
 ) {
     val scripted: Boolean = realModel == null
 
@@ -140,8 +233,12 @@ class KitchenController(
     var board: Blueprint by drawn
         private set
 
-    /** What keeps a shift from starting on [board]. */
-    var problems: List<String> by mutableStateOf(board.problems())
+    /** What keeps a shift from starting on [board]: what is wrong with its arrows, and stations the chosen shift does not have yet. */
+    var problems: List<String> by mutableStateOf(check(board, rush))
+        private set
+
+    /** The medals won so far, in this session and before it. */
+    var earned: Set<Pair<Rush, Medal>> by earned
         private set
 
     /** The tile the player pressed last: a station or the rail. Its arrows are shown and can be drawn. */
@@ -195,8 +292,11 @@ class KitchenController(
 
     private var job: Job? = null
 
-    /** The medals of the chosen shift, with whether a shift of this session won each. */
-    val goals: List<Pair<Goal, Boolean>> get() = rush.goals.map { goal -> goal to history.any { it.rush == rush && goal.metBy(it) } }
+    /** The medals of the chosen shift, with whether each was won. */
+    val goals: List<Pair<Goal, Boolean>> get() = medals(rush)
+
+    /** The medals of [rush], with whether each was won. */
+    fun medals(rush: Rush): List<Pair<Goal, Boolean>> = rush.goals.map { goal -> goal to ((rush to goal.medal) in earned) }
 
     /**
      * The best that the shifts of this session did on what [medal] measures, in the chosen shift: the
@@ -212,9 +312,12 @@ class KitchenController(
         }
     }
 
-    /** Chooses the orders of the next shift. */
+    /** Chooses the orders of the next shift. The board stays, so that a shift starts with the board of the one before. */
     fun choose(rush: Rush) {
-        if (!running) this.rush = rush
+        if (running) return
+        this.rush = rush
+        problems = check(board, rush)
+        picking = null
     }
 
     /** The player pressed an empty place: the stations to choose from are offered for it. */
@@ -228,7 +331,7 @@ class KitchenController(
     /** Puts a station of [kind] on the place the player pressed, and selects it so that its arrow can be drawn next. */
     fun put(kind: PieceKind) {
         val slot = picking ?: return
-        if (running) return
+        if (running || kind !in rush.offers) return
         draw(board.place(slot, kind))
         select(board.at(slot)?.id)
     }
@@ -285,8 +388,14 @@ class KitchenController(
 
     private fun draw(next: Blueprint) {
         board = next
-        problems = next.problems()
+        problems = check(next, rush)
     }
+
+    private fun check(board: Blueprint, rush: Rush): List<String> =
+        board.problems() +
+            board.pieces.map { it.kind }.distinct().filter { it !in rush.offers }.map { kind ->
+                "${kind.title} comes in a later shift. Take it off the board, or choose that shift."
+            }
 
     fun budget(tokens: Int) {
         if (!running) budget = tokens.coerceIn(1_000, MAX_BUDGET)
@@ -318,13 +427,26 @@ class KitchenController(
                 running = false
                 at = null
                 reading = null
-                if (finished) shift?.let { history = history + PlayedShift(orders, drawn, modelLabel, scripted, it) }
+                if (finished) shift?.let { keep(PlayedShift(orders, drawn, modelLabel, scripted, it)) }
             }
         }
     }
 
     fun stop() {
         job?.cancel()
+    }
+
+    private fun keep(played: PlayedShift) {
+        history = history + played
+        val won = played.rush.goals.filter { it.metBy(played) }.map { played.rush to it.medal }.toSet() - earned
+        if (won.isEmpty()) return
+        earned = earned + won
+        onEarned(earned)
+    }
+
+    /** Forgets the medals. */
+    fun forget() {
+        earned = emptySet()
     }
 
     /** Shows what the run of the kitchen's graph tells: where the order on the board is, and the kitchen after each minute. */

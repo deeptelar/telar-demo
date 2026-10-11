@@ -23,7 +23,7 @@ private const val TO_KITCHEN = 'k'
  * station in the order of the places, two for a sorter (yes, then no). An arrow is the number of the
  * place it goes to, `k` for the kitchen, or `-` when it is not drawn.
  *
- * The board a player starts with is `l-----0k`.
+ * The board that sends every order to the menu lookup is `l-----0k`.
  */
 fun Blueprint.text(): String {
     fun to(from: String, exit: Exit): Char =

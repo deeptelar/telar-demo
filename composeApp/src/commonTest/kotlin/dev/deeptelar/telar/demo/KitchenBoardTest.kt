@@ -14,6 +14,7 @@ import dev.deeptelar.telar.demo.kitchen.Blueprint.Companion.KITCHEN
 import dev.deeptelar.telar.demo.kitchen.Blueprint.Companion.RAIL
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Kitchen
 import dev.deeptelar.telar.demo.kitchen.MENU
 import dev.deeptelar.telar.demo.kitchen.Outcome
 import dev.deeptelar.telar.demo.kitchen.PieceKind
@@ -24,13 +25,20 @@ import dev.deeptelar.telar.demo.kitchen.Topping
 import dev.deeptelar.telar.demo.kitchen.Way
 import dev.deeptelar.telar.demo.kitchen.blueprintOf
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
+import dev.deeptelar.telar.demo.kitchen.firstOrders
+import dev.deeptelar.telar.demo.kitchen.firstThingsFirst
 import dev.deeptelar.telar.demo.kitchen.graph
 import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.kitchen
+import dev.deeptelar.telar.demo.kitchen.lookingBack
 import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.report
 import dev.deeptelar.telar.demo.kitchen.scriptedStations
+import dev.deeptelar.telar.demo.kitchen.sorting
+import dev.deeptelar.telar.demo.kitchen.specialWishes
 import dev.deeptelar.telar.demo.kitchen.text
+import dev.deeptelar.telar.demo.kitchen.theBook
+import dev.deeptelar.telar.demo.kitchen.twoOvens
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -374,6 +382,71 @@ class KitchenBoardTest {
         listOf("", "l-----", "l-----0", "z-----0k", "l-----9k", "l-----1k", "l-----00", "l-----0kk", "oo----0kk", "l-----0?").forEach { text ->
             assertNull(blueprintOf(text), text)
         }
+    }
+
+    private suspend fun shift(orders: Kitchen, board: Blueprint): BoardShift =
+        board.kitchen(scriptedStations(orders)).invoke(BoardShift(orders), config).state
+
+    private fun BoardShift.points(): Int = kitchen.score().points
+
+    @Test
+    fun everyShortShiftNeedsTheStationItBrings() = runTest {
+        val reader = boardWith(PieceKind.READER)
+        val book = boardWith(PieceKind.BOOK_READER)
+        val sorted =
+            Blueprint()
+                .place(0, PieceKind.ONLY_MENU)
+                .place(1, PieceKind.LOOKUP)
+                .place(3, PieceKind.READER)
+                .connect(RAIL, Exit.NEXT, "onlyMenu")
+                .connect("onlyMenu", Exit.YES, "lookup")
+                .connect("onlyMenu", Exit.NO, "reader")
+                .connect("lookup", Exit.NEXT, KITCHEN)
+                .connect("reader", Exit.NEXT, KITCHEN)
+
+        // Four pizzas of the menu: the lookup reads them all, for nothing.
+        shift(firstOrders(), Blueprint.FIRST).let { assertEquals(400 to 0, it.points() to it.spent) }
+
+        // Three guests want a pizza changed. The lookup reads the name, and the reader what they want.
+        assertEquals(100, shift(specialWishes(), Blueprint.FIRST).points())
+        shift(specialWishes(), reader).let { assertEquals(400 to 1_344, it.points() to it.spent) }
+
+        // Four of six orders need no model. A sorter in front of the lookup saves two thirds of the tokens.
+        assertEquals(400, shift(sorting(), Blueprint.FIRST).points())
+        shift(sorting(), reader).let { assertEquals(600 to 2_003, it.points() to it.spent) }
+        shift(sorting(), sorted).let { assertEquals(600 to 677, it.points() to it.spent) }
+
+        // Two orders build on what was said before. The reader of one order writes no ticket for one, and puts the allergen on the other.
+        shift(theBook(), reader).let { end ->
+            assertEquals(200, end.points())
+            assertEquals(Outcome.OPEN, end.kitchen.standing[2].outcome)
+            assertEquals(Outcome.ALLERGY, end.kitchen.standing[3].outcome)
+        }
+        assertEquals(200, shift(theBook(), sorted).points())
+        shift(theBook(), book).let { assertEquals(500 to 1_993, it.points() to it.spent) }
+
+        // Three of eight orders look back. The book for those alone is cheaper than the book for everything a lookup cannot read.
+        shift(lookingBack(), book).let { assertEquals(800 to 3_423, it.points() to it.spent) }
+        shift(lookingBack(), SORTED_BOARD).let { assertEquals(800 to 3_029, it.points() to it.spent) }
+        shift(lookingBack(), BEST_BOARD).let { assertEquals(800 to 2_601, it.points() to it.spent) }
+        assertEquals(500, shift(lookingBack(), reader).points())
+
+        // The two orders that are due first came last. With the due time on the tickets they are made first.
+        shift(firstThingsFirst(), Blueprint.FIRST).let { end ->
+            assertEquals(300, end.points())
+            assertEquals(listOf(3, 4), end.late())
+        }
+        assertEquals(400, shift(firstThingsFirst(), Blueprint.FIRST.behindTheRail(PieceKind.EXPEDITER)).points())
+        // A model takes a minute for each order, which is too long here.
+        assertEquals(350, shift(firstThingsFirst(), reader.behindTheRail(PieceKind.EXPEDITER)).points())
+
+        // Six pizzas that are due together are too many for two places, in whatever order they are baked.
+        shift(twoOvens(), Blueprint.FIRST).let { end ->
+            assertEquals(500, end.points())
+            assertEquals(listOf(5, 6), end.late())
+        }
+        assertEquals(500, shift(twoOvens(), Blueprint.FIRST.behindTheRail(PieceKind.EXPEDITER)).points())
+        assertEquals(600, shift(twoOvens(), Blueprint.FIRST.behindTheRail(PieceKind.SECOND_OVEN)).points())
     }
 
     private suspend fun dinner(board: Blueprint): BoardShift =

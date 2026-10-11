@@ -1,10 +1,14 @@
 package dev.deeptelar.telar.demo.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +28,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -60,7 +66,7 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PillButton("< All stages", onStages, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
-        Label("bonus stage / two shifts, twelve orders each", color = Theme.colors.red)
+        Label("bonus stage / nine shifts", color = Theme.colors.red)
         DotMatrix("Kitchen rush", pitch = if (compact) 3.dp else 5.dp)
         Body(
             "Orders come in until the kitchen closes, and the kitchen makes exactly what the ticket says. You draw how an order becomes " +
@@ -69,6 +75,7 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
             color = Theme.colors.dim,
         )
     }
+    ShiftMenu(controller)
 
     if (compact) {
         Builder(controller, Modifier.fillMaxWidth())
@@ -121,13 +128,56 @@ private fun CopyButton(label: String, text: () -> String, modifier: Modifier = M
     )
 }
 
+/**
+ * The shifts of the stage, in the order they are meant to be played: a tile for each, with its
+ * medals. None is locked, so that a link to a board of a later shift opens for everyone.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ShiftMenu(controller: KitchenController) {
+    val colors = Theme.colors
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Rush.entries.forEach { rush ->
+            val selected = controller.rush == rush
+            val medals = controller.medals(rush)
+            val shape = RoundedCornerShape(4.dp)
+            Column(
+                Modifier
+                    .background(colors.ground, shape)
+                    .border(if (selected) 2.dp else 1.dp, if (selected) colors.ink else colors.line, shape)
+                    .pointerHoverIcon(if (controller.running) PointerIcon.Default else PointerIcon.Hand)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Shift ${rush.number}: ${rush.title}, ${medals.count { it.second }} of ${medals.size} medals" +
+                            if (selected) ", chosen" else ""
+                    }
+                    .clickable(enabled = !controller.running, role = Role.RadioButton) { controller.choose(rush) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Label(rush.number.toString(), color = if (selected) colors.red else colors.dim)
+                    Label(rush.title, color = if (selected) colors.ink else colors.dim)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    medals.forEach { (_, won) -> PixelArt(Sprites.medal, pixel = 2.dp, tint = if (won) Color.Unspecified else colors.line) }
+                }
+            }
+        }
+    }
+}
+
 /** Where the player draws the board and starts the shift. */
 @Composable
 private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     var showCode by remember { mutableStateOf(false) }
     Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
-        Rush.entries.forEach { rush -> Choice(controller.rush == rush, rush.title, rush.detail, onClick = { controller.choose(rush) }) }
+        val rush = controller.rush
+        Label(
+            "shift ${rush.number} of ${Rush.entries.size} / " + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
+            color = colors.red,
+        )
+        Body(rush.detail, color = colors.dim)
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
         KitchenBoard(controller, Modifier.fillMaxWidth())
         Hand(controller)
@@ -188,9 +238,10 @@ private fun Hand(controller: KitchenController) {
         controller.running -> Body("The board cannot be changed while a shift runs.", color = colors.dim)
         picking != null -> {
             Label("a station for place ${picking + 1}", color = colors.ink)
-            // A station that a board can have only once is not offered again.
-            PieceKind.entries.filterNot { kind -> kind.once && board.pieces.any { it.kind == kind } }.forEach { kind ->
-                Choice(false, kind.title, kind.job, onClick = { controller.put(kind) }, role = Role.Button)
+            // A short shift offers the stations up to the one it teaches. A station that a board can have only once is not offered again.
+            val teaches = controller.rush.teaches
+            controller.rush.offers.filterNot { kind -> kind.once && board.pieces.any { it.kind == kind } }.forEach { kind ->
+                Choice(false, kind.title, if (kind == teaches) "New in this shift. ${kind.job}" else kind.job, onClick = { controller.put(kind) }, role = Role.Button)
             }
         }
         selected != null -> {
@@ -235,11 +286,13 @@ private fun Goals(controller: KitchenController, modifier: Modifier = Modifier) 
                 }
             }
         }
-        Body(
-            "Cheap and Small pull against each other: a board that reads for few tokens sorts its orders, and sorting takes stations.",
-            color = colors.dim,
-        )
-        if (!controller.scripted) {
+        if (goals.size == Medal.entries.size) {
+            Body(
+                "Cheap and Small pull against each other: a board that reads for few tokens sorts its orders, and sorting takes stations.",
+                color = colors.dim,
+            )
+        }
+        if (!controller.scripted && goals.any { it.first.medal == Medal.Cheap }) {
             Body("Cheap is for the scripted chefs, whose tokens are the same every time. A real model counts its own: compare your shifts.", color = colors.dim)
         }
     }
@@ -509,6 +562,11 @@ private fun Result(controller: KitchenController, shift: BoardShift) {
         Spec("medals", if (won.isEmpty()) "none on this board" else "${won.joinToString(" and ")} on this board")
         val page = remember { pageAddress() ?: DEMO_ADDRESS }
         CopyButton("Copy this result and a link to its board", { played.told(page) }, Modifier.offset(x = (-10).dp))
+        // A shift that served every order is done with, whatever medals are left in it.
+        val next = rush.next
+        if (played.right && next != null && controller.rush == rush) {
+            Box { PillButton("Next shift: ${next.title}", { controller.choose(next) }, emphasis = Emphasis.Primary) }
+        }
     }
 }
 
@@ -534,11 +592,3 @@ private fun Shifts(controller: KitchenController, modifier: Modifier = Modifier)
         Body("Try the same orders on another board, or with another model under Options.", color = colors.dim)
     }
 }
-
-/** 12345 as "12,345". */
-private fun Int.grouped(): String =
-    toString()
-        .reversed()
-        .chunked(3)
-        .joinToString(",")
-        .reversed()

@@ -46,14 +46,26 @@ that runs.
 
 ![The board with two sorters, in the middle of a shift](docs/kitchen.png)
 
-A puzzle. A pizzeria works through a shift of twelve orders, and the kitchen makes exactly what a
-ticket says. You draw how an order becomes a ticket and reaches the oven: stations on a board
-with six places, and arrows between them. There are two shifts:
+A puzzle. A pizzeria works through a shift, and the kitchen makes exactly what a ticket says. You
+draw how an order becomes a ticket and reaches the oven: stations on a board with six places, and
+arrows between them.
 
-- **Lunch rush** is about reading. Guests change their mind, one table has an allergy, and one
-  order only makes sense if you know what another table had.
-- **Dinner rush** is about the oven. The orders come in two waves and are not due in the order
-  they come, and one oven that takes the tickets as they arrive is too slow.
+There are nine shifts. The first seven are short, four to eight orders each, and each brings one
+station that the shifts before it did not have and that it cannot be won without. The last two are
+the rushes, with every station on offer. No shift is locked, and the board stays when you move on,
+so a shift starts with the board that won the one before.
+
+| Shift | New station | What it is about |
+|---|---|---|
+| 1. First orders | Menu lookup | Four pizzas from the menu. Placing a station and drawing its arrows. |
+| 2. Wishes | Reader | Guests want a pizza changed, which the lookup does not read. |
+| 3. Sorting | Sorter: only a menu pizza? | Most orders need no model. The first medal for few tokens. |
+| 4. The book | Reader with the book | Orders that only make sense with what was said before. |
+| 5. Looking back | Sorter: about something earlier? | The book costs more with every order, so only the orders that need it go there. |
+| 6. Urgent | Expediter | Orders that are not due in the order they come. |
+| 7. Two ovens | Second oven | More pizzas at once than one oven can bake in time. |
+| 8. Lunch rush | | Twelve orders, about reading. Guests change their mind, one table has an allergy, and one order only makes sense if you know what another table had. |
+| 9. Dinner rush | | Twelve orders in two waves, about the oven. One oven that takes the tickets as they arrive is too slow. |
 
 | Station | What it does | What it costs |
 |---|---|---|
@@ -75,12 +87,12 @@ the guests say later. Under each order is the way it takes across the board as y
 Only the sorters decide that way, and they are plain code, so the game knows it without asking a
 model.
 
-The board you start with sends every order to the menu lookup. It costs no tokens and gets most
-orders wrong. After a shift every order shows the way it took and the ticket it got, so you can see
-which station failed it. While the shift runs, the oven shows its places in pixels: a fire under
-each pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
+After a shift every order shows the way it took and the ticket it got, so you can see which
+station failed it. While the shift runs, the oven shows its places in pixels: a fire under each
+pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
 
-Each shift has three medals, and no board wins all of them:
+Every shift has a medal for serving every order right and on time. Shifts 3 and 5 have a second
+one for few tokens, and each rush has three, which no board wins together:
 
 | Medal | What it takes | Lunch rush | Dinner rush |
 |---|---|---|---|
@@ -93,7 +105,8 @@ is the small board, and it pays for the whole book every time. The cheap board s
 that a model reads only the ones that need it, and sorting takes stations. In the dinner rush the
 six places are the puzzle as well: every order on time needs the expediter and the second oven, and
 the sorters have to fit in what is left. The panel of the medals shows your best for each, and the
-shifts you played are listed side by side.
+shifts you played are listed side by side. The medals you won are kept between sessions, with the
+cleared stages.
 
 A board fits in a link. "Copy a link to this board" gives an address that opens the stage with that
 shift chosen and that board drawn, and after a shift the result can be copied with it, to post:
@@ -173,8 +186,8 @@ and the Android app have no such limit.
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
 - `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
   `Blueprint.kt` is the board a player draws, `BoardShift.kt` turns it into the graph that runs a
-  shift, `DinnerRush.kt` is the second shift, and `BoardText.kt` writes a board as the short text
-  that a link carries
+  shift, `Lessons.kt` has the seven short shifts and `DinnerRush.kt` the second rush, and
+  `BoardText.kt` writes a board as the short text that a link carries
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
