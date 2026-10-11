@@ -1,5 +1,6 @@
 package dev.deeptelar.telar.demo.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -28,7 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
@@ -47,20 +52,50 @@ private const val TITLE = "Pixel Pizza"
 /** The library the game is built with, and shows. */
 private const val TELAR = "https://github.com/deeptelar/telar"
 
+/** What the link to it is called for a player who cannot see the mark. */
+const val TELAR_LINK = "Telar on GitHub"
+
+/** The mark of GitHub, as the path of its 16 by 16 icon. */
+private const val GITHUB_MARK =
+    "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94" +
+        "-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07" +
+        "-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27" +
+        ".68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95" +
+        ".29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+
+private val gitHubMark by lazy { PathParser().parsePathString(GITHUB_MARK).toPath() }
+
 /**
- * The way from the game to the library it is built with. It is on every screen: in a corner of the
- * title screen and at the end of every page.
+ * The way from the game to the library it is built with: [text] and the mark of GitHub, which open
+ * the repository of Telar.
  */
 @Composable
-fun BuiltWithTelar() {
+fun TelarLink(text: String, modifier: Modifier = Modifier) {
+    val colors = Theme.colors
     val uriHandler = LocalUriHandler.current
-    // A link that is text only, so it is moved out by its padding to line up with the page.
-    PillButton("Built with Telar / GitHub", { uriHandler.openUri(TELAR) }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val focused by interaction.collectIsFocusedAsState()
+    val color = if (hovered || focused) colors.ink else colors.dim
+    Row(
+        modifier
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interaction, indication = null, role = Role.Button) { uriHandler.openUri(TELAR) }
+            .semantics { contentDescription = TELAR_LINK }
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Label(text, color = color)
+        Canvas(Modifier.size(16.dp)) {
+            scale(size.width / 16f, pivot = Offset.Zero) { drawPath(gitHubMark, color) }
+        }
+    }
 }
 
 /** The first thing a player sees: the name on a dot-matrix display and one button. */
 @Composable
-fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onOptions: () -> Unit) {
+fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onAbout: () -> Unit, onOptions: () -> Unit) {
     val colors = Theme.colors
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // One line when the display fits the window, two when it does not.
@@ -103,18 +138,19 @@ fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onOptions: 
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BuiltWithTelar()
+            TelarLink("built with Telar")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (roomForModel) Label("model $modelLabel")
+                PillButton("About", onAbout, emphasis = Emphasis.Quiet)
                 PillButton("Options", onOptions, emphasis = Emphasis.Quiet)
             }
         }
     }
 }
 
-/** The bar above every screen but the title: the way home, the slices won so far, and the options. */
+/** The bar above every screen but the title: the way home, the slices won so far, and the ways to the about page and the options. */
 @Composable
-fun TopBar(game: Game, modelLabel: String, onTitle: () -> Unit, onOptions: () -> Unit) {
+fun TopBar(game: Game, modelLabel: String, onTitle: () -> Unit, onAbout: () -> Unit, onOptions: () -> Unit) {
     val compact = LocalCompact.current
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (compact) 16.dp else 28.dp, vertical = 10.dp),
@@ -132,7 +168,11 @@ fun TopBar(game: Game, modelLabel: String, onTitle: () -> Unit, onOptions: () ->
         Spacer(Modifier.weight(1f))
         SliceMeter(game.cleared)
         if (!compact) Label("model $modelLabel")
-        PillButton("Options", onOptions, emphasis = Emphasis.Quiet)
+        // The two are text only, so they stand closer than the other parts of the bar.
+        Row {
+            PillButton("About", onAbout, emphasis = Emphasis.Quiet)
+            PillButton("Options", onOptions, emphasis = Emphasis.Quiet)
+        }
     }
 }
 
@@ -264,6 +304,34 @@ private val ModelMode.detail: String
         ModelMode.Gemini -> "The same, from a model of Google. Needs your Gemini API key."
         ModelMode.Other -> "Any other server with the API of OpenAI: Ollama on this device, Groq, Mistral, OpenRouter."
     }
+
+/** What the game is for, and the way to the library it is built with. */
+@Composable
+fun AboutScreen(onBack: () -> Unit) {
+    val colors = Theme.colors
+    DotMatrix("About", pitch = if (LocalCompact.current) 3.dp else 5.dp)
+
+    Panel("The game", Modifier.fillMaxWidth()) {
+        Body(
+            "Pixel Pizza shows what an AI agent workflow is, one move at a time. Each of its ${stages.size} stages is a small help " +
+                "desk that really runs, on this device: it reads a ticket, picks a path, asks two places at once, waits for " +
+                "your decision, and starts again where it failed.",
+        )
+        Body("You watch every step on the board, and a press on a tile shows the code of its node.", color = colors.dim)
+    }
+
+    Panel("The library", Modifier.fillMaxWidth()) {
+        Body(
+            "The game is built with Telar, an open-source Kotlin library for AI agents and workflows. Every stage is a Telar " +
+                "graph, and the board, the ticket and the run log are drawn from the events of its run.",
+        )
+        Body("Telar runs on the JVM, Android, iOS and the desktop, and in the browser.", color = colors.dim)
+        TelarLink("github.com/deeptelar/telar")
+    }
+
+    // A link that is text only, so it is moved out by its padding to line up with the page.
+    PillButton("< All stages", onBack, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+}
 
 @Composable
 fun OptionsScreen(settings: Settings, game: Game, onSave: (Settings) -> Unit, onBack: () -> Unit) {

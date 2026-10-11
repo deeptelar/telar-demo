@@ -111,6 +111,8 @@ class ScreenshotTest {
         shoot("stage-4-code-phone", Screen.Play(4), width = 390, height = 1700)
         shoot("stages", Screen.Stages)
         shoot("stages-phone", Screen.Stages, width = 390, height = 1100)
+        shoot("about", Screen.About)
+        shoot("about-phone", Screen.About, width = 390, height = 900)
         shoot("options", Screen.Options)
         shoot("options-claude", Screen.Options, height = 1200, settings = Settings(ModelMode.Claude).withKey("sk-ant-example"))
         shoot("options-gemini", Screen.Options, height = 1000, settings = Settings(ModelMode.Gemini).withKey("example"))

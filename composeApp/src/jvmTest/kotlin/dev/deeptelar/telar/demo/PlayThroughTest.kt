@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -26,6 +27,7 @@ import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.PizzaTheme
 import dev.deeptelar.telar.demo.ui.Screen
 import dev.deeptelar.telar.demo.ui.Settings
+import dev.deeptelar.telar.demo.ui.TELAR_LINK
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -109,7 +111,7 @@ class PlayThroughTest {
     }
 
     @Test
-    fun everyScreenLinksToTheLibrary() = runComposeUiTest {
+    fun theTitleScreenAndTheAboutPageLinkToTheLibrary() = runComposeUiTest {
         val opened = mutableListOf<String>()
         var screen by mutableStateOf<Screen>(Screen.Title)
         setContent {
@@ -121,19 +123,27 @@ class PlayThroughTest {
                 }
             }
             CompositionLocalProvider(LocalUriHandler provides links) {
-                PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = {}, onSave = {}) }
+                PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = { screen = it }, onSave = {}) }
             }
         }
 
-        onNodeWithText("BUILT WITH TELAR / GITHUB").performClick()
+        onNodeWithContentDescription(TELAR_LINK).performClick()
 
-        // On the other screens the link is at the end of the page.
-        val pages = listOf(Screen.Stages, Screen.Play(1), Screen.Play(8), Screen.Options)
-        pages.forEach {
-            screen = it
-            onNodeWithText("BUILT WITH TELAR / GITHUB").performScrollTo().performClick()
+        // The about page is one press away from the title screen and from the bar of every other screen.
+        onNodeWithText("ABOUT").performClick()
+        assertEquals(Screen.About, screen)
+        onNodeWithText("Pixel Pizza shows what an AI agent workflow is", substring = true).assertIsDisplayed()
+        onNodeWithContentDescription(TELAR_LINK).performScrollTo().performClick()
+        assertEquals(List(2) { "https://github.com/deeptelar/telar" }, opened)
+
+        onNodeWithText("< ALL STAGES").performScrollTo().performClick()
+        assertEquals(Screen.Stages, screen)
+        listOf(Screen.Stages, Screen.Play(3), Screen.Options).forEach { page ->
+            screen = page
+            // The pages themselves carry no link: it is on the about page.
+            assertEquals(0, onAllNodesWithContentDescription(TELAR_LINK).fetchSemanticsNodes().size)
+            onNodeWithText("ABOUT").performClick()
+            assertEquals(Screen.About, screen)
         }
-
-        assertEquals(List(pages.size + 1) { "https://github.com/deeptelar/telar" }, opened)
     }
 }
