@@ -61,6 +61,37 @@ class PlayThroughTest {
     }
 
     @Test
+    fun aPlayerRunsAShiftOfTheKitchenRushInTwoKitchens() = runComposeUiTest {
+        lateinit var game: Game
+        setContent {
+            val scope = rememberCoroutineScope()
+            game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 0) }
+            var screen by remember { mutableStateOf<Screen>(Screen.Title) }
+            PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = { screen = it }, onSave = {}) }
+        }
+
+        onNodeWithText("BONUS: KITCHEN RUSH").performClick()
+        onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
+        onNodeWithText("START THE SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
+
+        onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1100 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1 / THE LINE / SCRIPTED").performScrollTo().assertIsDisplayed()
+
+        // The same orders with one chef.
+        onNodeWithText("SOLO CHEF").performScrollTo().performClick()
+        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
+        onNodeWithText("2 / SOLO CHEF / SCRIPTED").performScrollTo().assertIsDisplayed()
+
+        // The stage select screen leads here too.
+        onNodeWithText("< ALL STAGES").performScrollTo().performClick()
+        onNodeWithText("KITCHEN RUSH").performScrollTo().performClick()
+        onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
+    }
+
+    @Test
     fun aPlayerPressesATileToSeeTheCodeOfItsNode() = runComposeUiTest {
         setContent {
             val scope = rememberCoroutineScope()

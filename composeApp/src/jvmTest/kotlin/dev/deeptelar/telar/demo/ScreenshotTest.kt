@@ -15,6 +15,7 @@ import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
+import dev.deeptelar.telar.demo.ui.KitchenLayout
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.PizzaTheme
 import dev.deeptelar.telar.demo.ui.Screen
@@ -118,6 +119,25 @@ class ScreenshotTest {
         shoot("options-gemini", Screen.Options, height = 1000, settings = Settings(ModelMode.Gemini).withKey("example"))
         shoot("options-other", Screen.Options, height = 1100, settings = Settings(ModelMode.Other).withModel("llama3.2"))
         shoot("options-other-phone", Screen.Options, width = 390, height = 1500, settings = Settings(ModelMode.Other))
+    }
+
+    @Test
+    fun theKitchenRushCanBeDrawn() {
+        shoot("kitchen", Screen.Kitchen)
+
+        // The line, in the rush: four orders came in together.
+        game.kitchen.start()
+        scope.advanceTimeBy(12_500)
+        shoot("kitchen-running", Screen.Kitchen, height = 2000)
+        scope.advanceUntilIdle()
+        shoot("kitchen-over", Screen.Kitchen, height = 2300)
+
+        // The same orders with one chef, to compare.
+        game.kitchen.choose(KitchenLayout.Solo)
+        game.kitchen.start()
+        scope.advanceUntilIdle()
+        shoot("kitchen-solo-over", Screen.Kitchen, height = 2300)
+        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 4200)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */

@@ -39,6 +39,9 @@ sealed interface Screen {
 
     data class Play(val stage: Int) : Screen
 
+    /** The bonus stage. */
+    data object Kitchen : Screen
+
     data object About : Screen
 
     data object Options : Screen
@@ -56,13 +59,16 @@ fun App() {
     val httpClient = remember { HttpClient() }
     var loaded by remember { mutableStateOf<Settings?>(null) }
     var screen by remember { mutableStateOf<Screen>(Screen.Title) }
+    val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {
         val settings = loaded ?: return@PizzaTheme
         // New settings mean a new model, and with it fresh graphs. Cleared stages and saved runs are kept.
         val model = remember(settings) { settings.chatModel(httpClient) }
-        val game = remember(model) { Game(model, store, saves, scope) }
+        val game = remember(model) {
+            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played)
+        }
         GameScreens(game, settings, screen, onNavigate = { screen = it }) { updated ->
             loaded = updated
             scope.launch { repository.save(updated) }
@@ -78,6 +84,7 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
             game,
             settings.modelLabel,
             onStart = { onNavigate(Screen.Stages) },
+            onKitchen = { onNavigate(Screen.Kitchen) },
             onAbout = { onNavigate(Screen.About) },
             onOptions = { onNavigate(Screen.Options) },
         )
@@ -106,7 +113,8 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                         ) {
                             when (screen) {
                                 Screen.Title -> Unit
-                                Screen.Stages -> StageSelectScreen(game) { onNavigate(Screen.Play(it)) }
+                                Screen.Stages -> StageSelectScreen(game, onKitchen = { onNavigate(Screen.Kitchen) }) { onNavigate(Screen.Play(it)) }
+                                Screen.Kitchen -> KitchenScreen(game.kitchen) { onNavigate(Screen.Stages) }
                                 is Screen.Play -> StageScreen(
                                     game.controller(screen.stage),
                                     realModel = settings.modelLabel.takeIf { settings.usesService },

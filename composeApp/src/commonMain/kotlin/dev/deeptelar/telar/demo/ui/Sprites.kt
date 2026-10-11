@@ -34,6 +34,17 @@ object Sprites {
         "......y......",
     )
 
+    /** A whole pizza, seen from above, at the size of a status light. */
+    val pie = Sprite(
+        "..ccc..",
+        ".cyyrc.",
+        "cyryyyc",
+        "cyyyryc",
+        "cyryyyc",
+        ".cyyyc.",
+        "..ccc..",
+    )
+
     /** The slice at the size of a status light. */
     val miniSlice = Sprite(
         "ccccccc",

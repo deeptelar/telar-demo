@@ -95,7 +95,7 @@ fun TelarLink(text: String, modifier: Modifier = Modifier) {
 
 /** The first thing a player sees: the name on a dot-matrix display and one button. */
 @Composable
-fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onAbout: () -> Unit, onOptions: () -> Unit) {
+fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onKitchen: () -> Unit, onAbout: () -> Unit, onOptions: () -> Unit) {
     val colors = Theme.colors
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // One line when the display fits the window, two when it does not.
@@ -131,6 +131,8 @@ fun TitleScreen(game: Game, modelLabel: String, onStart: () -> Unit, onAbout: ()
             )
             Spacer(Modifier.height(16.dp))
             Label("${stages.size} stages / no api key needed")
+            Spacer(Modifier.height(20.dp))
+            PillButton("Bonus: Kitchen rush", onKitchen)
         }
 
         Row(
@@ -190,7 +192,7 @@ private fun SliceMeter(cleared: Set<Int>) {
 }
 
 @Composable
-fun StageSelectScreen(game: Game, onPlay: (Int) -> Unit) {
+fun StageSelectScreen(game: Game, onKitchen: () -> Unit, onPlay: (Int) -> Unit) {
     val colors = Theme.colors
     val allClear = game.cleared.size == stages.size
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -224,6 +226,14 @@ fun StageSelectScreen(game: Game, onPlay: (Int) -> Unit) {
                 }
             }
         }
+    }
+
+    Panel("Bonus stage", Modifier.fillMaxWidth(), edge = colors.yellow) {
+        Body(
+            "Kitchen rush: a pizzeria whose chefs are graphs works through one shift of twelve orders. You build the kitchen, " +
+                "and with a real model under Options you see what each kitchen costs in tokens.",
+        )
+        PillButton("Kitchen rush", onKitchen)
     }
 
     HowToPlay()

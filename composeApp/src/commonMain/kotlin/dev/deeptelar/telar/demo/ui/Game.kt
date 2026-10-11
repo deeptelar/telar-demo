@@ -1,5 +1,6 @@
 package dev.deeptelar.telar.demo.ui
 
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -311,6 +312,10 @@ class StageController(
  *
  * @param store remembers the cleared stages.
  * @param saves keeps the runs of the stages, so that one that paused is still there in the next session.
+ * @param realModel the model of the service the player chose, or `null` when the scripted model answers.
+ * [model] is never `null`: the stages always have someone to ask.
+ * @param modelLabel what [realModel] is called.
+ * @param played the shifts of the bonus stage that ran to their end.
  */
 class Game(
     model: ChatModel,
@@ -318,9 +323,16 @@ class Game(
     saves: Checkpointer<Ticket>,
     private val scope: CoroutineScope,
     workMillis: Long = 650,
+    realModel: ChatModel? = null,
+    modelLabel: String = "scripted",
+    played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
+
+    /** The bonus stage. Its chefs are scripted unless the player chose a real model. */
+    val kitchen: KitchenController =
+        KitchenController(realModel, modelLabel, scope, minuteMillis = if (workMillis == 0L) 0 else if (realModel == null) 250 else 40, played = played)
 
     val controllers: List<StageController> = stages.map { StageController(it, Desk(model, workMillis), saves, scope, ::markCleared) }
 
