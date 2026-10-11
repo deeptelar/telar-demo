@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -75,6 +76,11 @@ class PlayThroughTest {
         onNodeWithText("BONUS: KITCHEN RUSH").performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
         onNodeWithContentDescription("Board: rail to lookup, lookup to kitchen").performScrollTo().assertIsDisplayed()
+        // The orders can be read before the shift, each with the way it takes across the board.
+        onNodeWithText("ORDERS / LUNCH RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithText("The same as table 2 had, but without the extra.").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Order 9 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
+        onNodeWithText("minute 23: Table 5 also wants mushrooms on it.").performScrollTo().assertIsDisplayed()
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
 
@@ -96,6 +102,9 @@ class PlayThroughTest {
         onNodeWithContentDescription("Station bookReader").performScrollTo().performClick()
         onNodeWithContentDescription("Board: bookReader to kitchen, rail to bookReader").performScrollTo().assertIsDisplayed()
 
+        // The orders of the shift that is over say where they would go on the new board.
+        onAllNodesWithText("on the board now: rail > book > kitchen").assertCountEquals(11)
+
         onNodeWithText("SHOW THE CODE OF THIS BOARD").performScrollTo().performClick()
         onNodeWithContentDescription("The code of the board").performScrollTo().assertIsDisplayed()
 
@@ -113,6 +122,8 @@ class PlayThroughTest {
         onNodeWithText("DINNER RUSH").performScrollTo().performClick()
         assertEquals(Rush.Dinner, game.kitchen.rush)
         onNodeWithText("MEDALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithText("ORDERS / DINNER RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Order 12 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Place 2").performScrollTo().performClick()
         onNodeWithText("SECOND OVEN").performScrollTo().performClick()
         onNodeWithContentDescription("Station lookup").performScrollTo().performClick()

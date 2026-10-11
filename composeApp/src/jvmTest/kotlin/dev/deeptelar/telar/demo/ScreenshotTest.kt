@@ -125,7 +125,7 @@ class ScreenshotTest {
     @Test
     fun theKitchenRushCanBeDrawn() {
         // The board a player finds, and the stations an empty place offers.
-        shoot("kitchen", Screen.Kitchen)
+        shoot("kitchen", Screen.Kitchen, height = 2100)
         game.kitchen.tapSlot(3)
         shoot("kitchen-picking", Screen.Kitchen, height = 1500)
 

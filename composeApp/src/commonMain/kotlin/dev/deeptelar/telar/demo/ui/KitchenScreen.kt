@@ -40,6 +40,8 @@ import dev.deeptelar.telar.demo.kitchen.Pizza
 import dev.deeptelar.telar.demo.kitchen.Place
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
+import dev.deeptelar.telar.demo.kitchen.Way
+import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.report
 
 /**
@@ -50,7 +52,8 @@ import dev.deeptelar.telar.demo.kitchen.report
 @Composable
 fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
     val compact = LocalCompact.current
-    val shift = controller.shift
+    // A shift of the other orders is not shown while the player plans this one. It stays under "Your shifts".
+    val shift = controller.shift?.takeIf { controller.running || controller.playingRush == controller.rush }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PillButton("< All stages", onStages, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
@@ -67,7 +70,7 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
     if (compact) {
         Builder(controller, Modifier.fillMaxWidth())
         Goals(controller, Modifier.fillMaxWidth())
-        if (shift != null) ShiftPanels(controller, shift)
+        if (shift != null) ShiftPanels(controller, shift) else OrdersAhead(controller)
         Shifts(controller, Modifier.fillMaxWidth())
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -77,7 +80,7 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
                 Shifts(controller, Modifier.fillMaxWidth())
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                if (shift != null) ShiftPanels(controller, shift) else Waiting()
+                if (shift != null) ShiftPanels(controller, shift) else OrdersAhead(controller)
             }
         }
     }
@@ -211,15 +214,51 @@ private fun Medal.said(best: Int, rush: Rush): String =
         Medal.Small -> if (best == 1) "1 station" else "$best stations"
     }
 
+/** The stations of [way] as the tiles of this board say them, from the rail to where the order ends. */
+private fun Blueprint.said(way: Way): String =
+    (listOf("rail") + way.stations.map { piece(it)?.kind?.tile ?: it } + if (way.arrives) "kitchen" else "stuck").joinToString(" > ")
+
+/**
+ * The orders of the chosen shift before it starts. They are the same every time, so nothing in a
+ * shift is a surprise: under each order is the way it takes across the board as it is drawn now.
+ */
 @Composable
-private fun Waiting() {
-    Panel("The shift", Modifier.fillMaxWidth()) {
+private fun OrdersAhead(controller: KitchenController) {
+    val colors = Theme.colors
+    val rush = controller.rush
+    val board = controller.board
+    val kitchen = remember(rush) { rush.orders() }
+    val heard = remember(rush) { kitchen.heard() }
+    Panel("Orders / ${rush.title}", Modifier.fillMaxWidth(), trailing = { Label("known before the shift") }) {
         Body(
-            "The kitchen is closed. Start a shift on the board as it is: the orders show here as they come in, each with the way it took " +
-                "across the board and the ticket it got. Then draw a better board.",
-            color = Theme.colors.dim,
+            "The kitchen is closed, and these are the orders it will get: the same every time. Under each is the way it takes across " +
+                "the board as you have drawn it. Start a shift to see what the kitchen makes of them.",
+            color = colors.dim,
         )
+        kitchen.orders.forEach { order ->
+            val first = board.way(order.text)
+            Column(
+                Modifier.semantics(mergeDescendants = true) { contentDescription = "Order ${order.number} goes ${board.said(first)}" },
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Label("#${order.number} / table ${order.table} / minute ${order.placedAt} / due ${order.dueAt}", color = colors.ink)
+                Body(order.text)
+                WayLine("goes", board, first)
+                kitchen.changes.filter { it.order == order.number }.forEach { change ->
+                    Body("minute ${change.at}: ${change.text}", color = if (change.wanted == null) colors.dim else colors.ink)
+                    // A change is read again, together with the order, and the words of both decide its way.
+                    heard.firstOrNull { it.change && it.minute == change.at && it.slip.order == order.number }?.let { again ->
+                        WayLine("goes again", board, board.way(again.slip.words))
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun WayLine(word: String, board: Blueprint, way: Way) {
+    Body("$word: ${board.said(way)}", color = if (way.arrives) Theme.colors.dim else Theme.colors.red)
 }
 
 /** Everything about the shift that runs or just ended. */
@@ -338,13 +377,18 @@ private fun PizzaRow(pizza: Pizza, state: String, stateColor: Color) {
     }
 }
 
-/** The orders the kitchen has heard of, each with how it ended, the way it took across the board, and the ticket it got. */
+/**
+ * The orders of the shift: those the kitchen has heard of, each with how it ended, the way it took
+ * across the board and the ticket it got, and after them the ones that are still to come.
+ */
 @Composable
 private fun Rail(controller: KitchenController, shift: BoardShift) {
     val colors = Theme.colors
     val kitchen = shift.kitchen
     val board = controller.playing
-    val heard = kitchen.standing.filter { it.placedAt <= kitchen.minute }
+    val (heard, ahead) = kitchen.standing.partition { it.placedAt <= kitchen.minute }
+    // Once the shift is over the player draws again, and an order that would go another way now says so.
+    val redrawn = controller.board.takeIf { !controller.running && it != board }
     Panel("Orders", Modifier.fillMaxWidth(), trailing = { Label("${heard.size} of ${kitchen.orders.size} placed") }) {
         if (heard.isEmpty()) Body("No order yet.", color = colors.dim)
         heard.forEach { order ->
@@ -357,14 +401,27 @@ private fun Rail(controller: KitchenController, shift: BoardShift) {
                     Label(status, color = color)
                 }
                 Body(order.text, color = if (order.outcome == Outcome.CANCELLED) colors.dim else colors.ink)
-                if (route != null) {
-                    Body("went: " + (listOf("rail") + route.map { board.piece(it)?.kind?.tile ?: it } + "kitchen").joinToString(" > "), color = colors.dim)
-                }
+                if (route != null) Body("went: ${board.said(Way(route, arrives = true))}", color = colors.dim)
                 when {
                     ticket != null -> Body("ticket: ${ticket.joinToString { it.word }}", color = colors.dim)
                     route != null && order.outcome != Outcome.CANCELLED && shift.written.none { it.order == order.number } ->
                         Body("no ticket, so the kitchen makes nothing for it", color = colors.red)
                 }
+                if (redrawn != null && route != null && order.outcome != Outcome.CANCELLED) {
+                    val now = redrawn.way(order.text)
+                    if (redrawn.said(now) != board.said(Way(route, arrives = true))) {
+                        Body("on the board now: ${redrawn.said(now)}", color = if (now.arrives) colors.yellow else colors.red)
+                    }
+                }
+            }
+        }
+        ahead.forEach { order ->
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Label("#${order.number} / table ${order.table} / due ${order.dueAt}")
+                    Label("comes at minute ${order.placedAt}")
+                }
+                Body(order.text, color = colors.dim)
             }
         }
     }

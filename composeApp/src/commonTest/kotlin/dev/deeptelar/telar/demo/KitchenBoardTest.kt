@@ -21,8 +21,10 @@ import dev.deeptelar.telar.demo.kitchen.READER_ALONE
 import dev.deeptelar.telar.demo.kitchen.READER_WITH_BOOK
 import dev.deeptelar.telar.demo.kitchen.Slip
 import dev.deeptelar.telar.demo.kitchen.Topping
+import dev.deeptelar.telar.demo.kitchen.Way
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.graph
+import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.report
@@ -304,6 +306,35 @@ class KitchenBoardTest {
         assertTrue(PieceKind.ONLY_MENU.says(" veggie "))
         assertFalse(PieceKind.ONLY_MENU.says("A veggie, please."))
         assertFalse(PieceKind.READER.says("A veggie."))
+    }
+
+    @Test
+    fun theWayOfAnOrderAcrossTheBoardIsKnownBeforeTheShift() = runTest {
+        val heard = lunchRush().heard()
+        // Twelve orders, and the change that the board reads again. That table 6 leaves is nothing to read.
+        assertEquals(13, heard.size)
+        assertEquals(heard.sortedBy { it.minute }, heard)
+        val change = heard.single { it.change }
+        assertEquals(23 to 5, change.minute to change.slip.order)
+        assertEquals("A pepperoni without tomato. Then: Table 5 also wants mushrooms on it.", change.slip.words)
+
+        assertEquals(Way(listOf("lookup"), arrives = true), Blueprint.FIRST.way("The same as table 2 had."))
+        assertEquals(Way(listOf("onlyMenu", "lookup"), arrives = true), SORTED_BOARD.way("One margherita."))
+        assertEquals(Way(listOf("onlyMenu", "bookReader"), arrives = true), SORTED_BOARD.way("The same as table 2 had."))
+        // An order stops where an arrow is missing, and where the arrows bring it back to a station.
+        assertEquals(Way(listOf("onlyMenu"), arrives = false), SORTED_BOARD.disconnect("onlyMenu", Exit.NO).way("The same as table 2 had."))
+        assertEquals(Way(emptyList(), arrives = false), Blueprint().way("One margherita."))
+        val circle =
+            boardWith(PieceKind.READER).place(1, PieceKind.EXPEDITER).connect("reader", Exit.NEXT, "expediter").connect("expediter", Exit.NEXT, "reader")
+        assertEquals(Way(listOf("reader", "expediter"), arrives = false), circle.way("One margherita."))
+
+        // What a board says before the shift is what happens in it: the last thing said about an order goes the way that was told.
+        listOf(lunchRush() to BEST_BOARD, dinnerRush() to DINNER_BOARD).forEach { (orders, board) ->
+            val end = board.kitchen(scriptedStations(orders)).invoke(BoardShift(orders), config).state
+            val last = orders.heard().groupBy { it.slip.order }.mapValues { (_, said) -> said.last().slip.words }
+            assertEquals(orders.orders.map { it.number }.toSet(), last.keys)
+            last.forEach { (order, words) -> assertEquals(Way(end.routes.getValue(order), arrives = true), board.way(words), "#$order") }
+        }
     }
 
     private suspend fun dinner(board: Blueprint): BoardShift =

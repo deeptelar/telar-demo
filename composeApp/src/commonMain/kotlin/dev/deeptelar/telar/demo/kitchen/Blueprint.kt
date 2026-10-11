@@ -105,6 +105,17 @@ data class Arrow(
 )
 
 /**
+ * The way of an order across a board.
+ *
+ * @property stations the stations it goes through, by their ids.
+ * @property arrives `false` when it does not get to the kitchen: an arrow is missing, or the arrows run in a circle.
+ */
+data class Way(
+    val stations: List<String>,
+    val arrives: Boolean,
+)
+
+/**
  * What the player drew: the stations between the rail, where the orders come in, and the kitchen,
  * which makes what the tickets say. It is a value, and [graph] turns it into a Telar graph.
  */
@@ -138,6 +149,21 @@ data class Blueprint(
 
     /** The first way out of [id] that has no arrow yet. */
     fun freeExit(id: String): Exit? = exits(id).firstOrNull { target(id, it) == null }
+
+    /**
+     * The way an order with these [words] takes across the board. Only the sorters decide it, and they
+     * are plain code, so it is known before a shift starts and without asking a model.
+     */
+    fun way(words: String): Way {
+        val stations = mutableListOf<String>()
+        var next = target(RAIL, Exit.NEXT)
+        while (next != null && next != KITCHEN && next !in stations) {
+            val kind = piece(next)?.kind ?: break
+            stations += next
+            next = target(next, if (!kind.sorts) Exit.NEXT else if (kind.says(words)) Exit.YES else Exit.NO)
+        }
+        return Way(stations, arrives = next == KITCHEN)
+    }
 
     /** This board with a new station of [kind] on [slot]. A slot that is taken, or is not on the board, stays as it is. */
     fun place(slot: Int, kind: PieceKind): Blueprint {

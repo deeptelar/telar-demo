@@ -265,16 +265,37 @@ fun Blueprint.kitchen(models: (PieceKind) -> ChatModel): CompiledGraph<BoardShif
     }.compile()
 }
 
-/** What the guests said after minute [since] and up to now, as slips: the orders they placed and the changes they made. */
-private fun Kitchen.slips(since: Int): List<Slip> {
-    val placed = orders.filter { it.placedAt in (since + 1)..minute }.map { it.placedAt to Slip(it.number, it.table, it.text) }
+/**
+ * Something the guests say in a shift that the board gets to read.
+ *
+ * @property minute when they say it.
+ * @property slip what is put on the board for it.
+ * @property change `true` when it changes an order that was placed before, which the board then reads again.
+ */
+data class Heard(
+    val minute: Int,
+    val slip: Slip,
+    val change: Boolean,
+)
+
+/**
+ * Everything the board gets to read in the shift of this kitchen, in the order it comes. The orders
+ * of a shift are fixed, so a player can read them, and see which way each would go, before it starts.
+ */
+fun Kitchen.heard(): List<Heard> = at(closesAt).said(since = -1)
+
+/** What the guests said after minute [since] and up to now: the orders they placed and the changes they made. */
+private fun Kitchen.said(since: Int): List<Heard> {
+    val placed = orders.filter { it.placedAt in (since + 1)..minute }.map { Heard(it.placedAt, Slip(it.number, it.table, it.text), change = false) }
     val changed =
         changes.filter { it.wanted != null && it.at in (since + 1)..minute }.mapNotNull { change ->
             val order = at(change.at).standing.first { it.number == change.order }
-            if (order.outcome != Outcome.OPEN) null else change.at to Slip(order.number, order.table, order.text, said = change.text)
+            if (order.outcome != Outcome.OPEN) null else Heard(change.at, Slip(order.number, order.table, order.text, said = change.text), change = true)
         }
-    return (placed + changed).sortedBy { it.first }.map { it.second }
+    return (placed + changed).sortedBy { it.minute }
 }
+
+private fun Kitchen.slips(since: Int): List<Slip> = said(since).map { it.slip }
 
 /**
  * This shift after the rail took in the news of the minute: the tickets and the log lines whose
