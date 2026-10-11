@@ -1,29 +1,39 @@
 package dev.deeptelar.telar.demo.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.BoardShift
+import dev.deeptelar.telar.demo.kitchen.Desk
+import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.kitchen.Kitchen
-import dev.deeptelar.telar.demo.kitchen.LineShift
+import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.Order
 import dev.deeptelar.telar.demo.kitchen.Outcome
 import dev.deeptelar.telar.demo.kitchen.Pizza
@@ -34,8 +44,9 @@ import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.report
 
 /**
- * The bonus stage: one shift of a pizzeria whose chefs are graphs. The player builds the kitchen,
- * and the shift is measured on the orders it serves and the tokens its models use.
+ * The bonus stage: one shift of a pizzeria. The player draws how an order gets from the rail to the
+ * kitchen, as stations and arrows, and the shift is measured on the orders it serves and the tokens
+ * its models use.
  */
 @Composable
 fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
@@ -47,46 +58,62 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
         Label("bonus stage / one shift, twelve orders", color = Theme.colors.red)
         DotMatrix("Kitchen rush", pitch = if (compact) 3.dp else 5.dp)
         Body(
-            "The chefs of this kitchen are Telar graphs. Orders come in, change and get cancelled, the oven has two places, and " +
-                "the kitchen closes at minute $CLOSES_AT. You build the kitchen. The shift is measured on the orders it " +
-                "serves in time and on the tokens its model uses.",
+            "Twelve orders come in before the kitchen closes at minute $CLOSES_AT. Guests change their mind, one table has an allergy, and " +
+                "one order only makes sense if you know what another table had. The kitchen makes exactly what the ticket says. " +
+                "You draw how an order becomes a ticket: every order is one run of the graph on your board.",
             Modifier.widthIn(max = 720.dp),
             color = Theme.colors.dim,
         )
     }
 
     if (compact) {
-        Setup(controller, Modifier.fillMaxWidth())
+        Builder(controller, Modifier.fillMaxWidth())
+        Goals(controller, Modifier.fillMaxWidth())
         if (shift != null) ShiftPanels(controller, shift)
+        Shifts(controller, Modifier.fillMaxWidth())
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                Setup(controller, Modifier.fillMaxWidth())
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Builder(controller, Modifier.fillMaxWidth())
+                Goals(controller, Modifier.fillMaxWidth())
                 Shifts(controller, Modifier.fillMaxWidth())
             }
-            Column(Modifier.weight(3f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 if (shift != null) ShiftPanels(controller, shift) else Waiting()
             }
         }
     }
-    if (compact) Shifts(controller, Modifier.fillMaxWidth())
 }
 
 private val CLOSES_AT = lunchRush().closesAt
 
-/** Where the player builds the kitchen and starts the shift. */
+/** Where the player draws the board and starts the shift. */
 @Composable
-private fun Setup(controller: KitchenController, modifier: Modifier = Modifier) {
+private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
-    Panel("Build the kitchen", modifier) {
-        KitchenLayout.entries.forEach { layout ->
-            Choice(controller.layout == layout, layout.title, layout.detail, onClick = { controller.choose(layout) })
+    var showCode by remember { mutableStateOf(false) }
+    Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
+        KitchenBoard(controller, Modifier.fillMaxWidth())
+        Hand(controller)
+        controller.problems.forEach { problem -> Body(problem, color = colors.red) }
+
+        PillButton(if (showCode) "Hide the code" else "Show the code of this board", { showCode = !showCode }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+        if (showCode) {
+            Box(Modifier.fillMaxWidth().background(colors.panel, RoundedCornerShape(4.dp)).horizontalScroll(rememberScrollState()).padding(12.dp)) {
+                BasicText(
+                    controller.board.code(),
+                    Modifier.semantics { contentDescription = "The code of the board" },
+                    Theme.body.copy(color = colors.ink, fontSize = 12.sp, lineHeight = 18.sp),
+                    softWrap = false,
+                )
+            }
         }
+
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
         if (controller.scripted) {
             Spec("model", "scripted. No model is asked, and the tokens are a guess. Choose a real model under Options.")
         } else {
-            Spec("model", "${controller.modelLabel}. A shift uses your key: about 10,000 tokens on the line and up to 150,000 for the solo chef.")
+            Spec("model", "${controller.modelLabel}. A shift uses your key: a reader asks the model once for each order it gets.")
             Field(
                 controller.budget.toString(),
                 { text -> text.filter(Char::isDigit).take(7).toIntOrNull()?.let(controller::budget) },
@@ -98,8 +125,71 @@ private fun Setup(controller: KitchenController, modifier: Modifier = Modifier) 
             if (controller.running) {
                 PillButton("Stop", controller::stop)
             } else {
-                PillButton(if (controller.shift == null) "Start the shift" else "Start a new shift", controller::start, emphasis = Emphasis.Primary)
+                PillButton(
+                    if (controller.shift == null) "Start the shift" else "Start a new shift",
+                    controller::start,
+                    emphasis = Emphasis.Primary,
+                    enabled = controller.problems.isEmpty(),
+                )
+                PillButton("Clear the board", { controller.load(Blueprint()) }, emphasis = Emphasis.Quiet)
             }
+        }
+    }
+}
+
+/** What the player can do next on the board: choose a station for a place, or draw the arrows of the tile that is selected. */
+@Composable
+private fun Hand(controller: KitchenController) {
+    val colors = Theme.colors
+    val board = controller.board
+    val picking = controller.picking
+    val selected = controller.selected
+    when {
+        controller.running -> Body("The board cannot be changed while a shift runs.", color = colors.dim)
+        picking != null -> {
+            Label("a station for place ${picking + 1}", color = colors.ink)
+            PieceKind.entries.forEach { kind -> Choice(false, kind.title, kind.job, onClick = { controller.put(kind) }, role = Role.Button) }
+        }
+        selected != null -> {
+            Label(board.title(selected), color = colors.ink)
+            Body(board.piece(selected)?.kind?.job ?: "Every order and every change of an order starts here.", color = colors.dim)
+            board.exits(selected).forEach { exit ->
+                val target = board.target(selected, exit)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Label(if (exit == Exit.NEXT) "arrow to" else "${exit.word} goes to", Modifier.width(88.dp))
+                    when {
+                        controller.armed == exit -> Body("press the tile it goes to", color = colors.yellow)
+                        target != null -> {
+                            Body(board.title(target))
+                            PillButton("Change", { controller.redraw(exit) }, emphasis = Emphasis.Quiet)
+                        }
+                        else -> PillButton("Draw", { controller.redraw(exit) }, emphasis = Emphasis.Quiet)
+                    }
+                }
+            }
+            if (board.piece(selected) != null) PillButton("Remove the station", controller::remove)
+        }
+        else -> Body("Press an empty place to add a station. Press a station or the rail, and then the tile its arrow goes to.", color = colors.dim)
+    }
+}
+
+/** What there is to reach, and what the shifts of this session have reached. */
+@Composable
+private fun Goals(controller: KitchenController, modifier: Modifier = Modifier) {
+    val colors = Theme.colors
+    val goals = controller.goals
+    Panel("Goals", modifier, trailing = { Label("${goals.count { it.second }} of ${goals.size}") }) {
+        goals.forEach { (goal, met) ->
+            Row(
+                Modifier.semantics(mergeDescendants = true) { contentDescription = "${goal.text} ${if (met) "Reached" else "Open"}" },
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Label(if (met) "[x]" else "[ ]", Modifier.padding(top = 4.dp), color = if (met) colors.yellow else colors.dim)
+                Body(goal.text, color = if (met) colors.ink else colors.dim)
+            }
+        }
+        if (!controller.scripted) {
+            Body("The token goals are for the scripted chefs, whose tokens are the same every time. A real model counts its own: compare your shifts.", color = colors.dim)
         }
     }
 }
@@ -107,13 +197,17 @@ private fun Setup(controller: KitchenController, modifier: Modifier = Modifier) 
 @Composable
 private fun Waiting() {
     Panel("The shift", Modifier.fillMaxWidth()) {
-        Body("The kitchen is closed. Pick how it is built and start the shift.", color = Theme.colors.dim)
+        Body(
+            "The kitchen is closed. Start a shift on the board as it is: the orders show here as they come in, each with the way it took " +
+                "across the board and the ticket it got. Then draw a better board.",
+            color = Theme.colors.dim,
+        )
     }
 }
 
 /** Everything about the shift that runs or just ended. */
 @Composable
-private fun ShiftPanels(controller: KitchenController, shift: Service) {
+private fun ShiftPanels(controller: KitchenController, shift: BoardShift) {
     val colors = Theme.colors
     controller.error?.let { error ->
         Panel("The shift stopped", Modifier.fillMaxWidth(), edge = colors.red) { Body(error, color = colors.red) }
@@ -123,7 +217,7 @@ private fun ShiftPanels(controller: KitchenController, shift: Service) {
     Stations(controller, shift)
     Floor(shift.kitchen)
     Log(shift)
-    Rail(shift)
+    Rail(controller, shift)
 }
 
 /** The two limits of a shift and what it earned: the clock, the tokens and the points. */
@@ -162,34 +256,21 @@ private fun Meter(name: String, value: String, fraction: Float, color: Color) {
     }
 }
 
-/** Who works in the kitchen, whether each is at work right now, and what each cost. */
+/** The stations of the board that ask a model, with what each cost, and the two behind the board that work by rules. */
 @Composable
-private fun Stations(controller: KitchenController, shift: Service) {
+private fun Stations(controller: KitchenController, shift: BoardShift) {
     val colors = Theme.colors
-    val line = shift is LineShift
-    Panel("Stations", Modifier.fillMaxWidth(), trailing = { Label(if (line) "three nodes in parallel" else "one agent") }) {
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            shift.desks.forEach { (name, desk) ->
-                // On the line, a chef is at work until the minute it is done. The solo chef works whenever the shift runs.
-                val busy = controller.running && (!line || desk.busyUntil > shift.kitchen.minute)
-                val byRules = line && name != "reader" && controller.playing == KitchenLayout.Line
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().border(1.dp, if (busy) colors.red else colors.line, PanelShape).padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Label(name, color = if (busy) colors.red else colors.ink)
-                    Label(STATION_JOBS.getValue(name))
-                    Body(
-                        if (byRules) "plain code, no tokens" else "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers",
-                        color = colors.dim,
-                    )
-                }
-            }
+    val asking = controller.playing.pieces.filter { it.kind.asks }
+    Panel("Stations", Modifier.fillMaxWidth(), trailing = { Label("one run of the graph for each order") }) {
+        asking.forEach { piece ->
+            val desk = shift.stations[piece.id] ?: Desk()
+            Spec(piece.kind.tile, "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers")
         }
+        if (asking.isEmpty()) Spec("board", "No station of this board asks a model.", colors.dim)
+        Spec("prep", "makes what the tickets say. Plain code, no tokens.", colors.dim)
+        Spec("oven", "bakes and serves. Plain code, no tokens.", colors.dim)
     }
 }
-
-private val STATION_JOBS = mapOf("chef" to "does everything", "reader" to "writes the tickets", "prep" to "makes the pizzas", "oven" to "bakes and serves")
 
 /** The pizzas that are in the kitchen: raw on the counter, in the oven, and baked on the pass. */
 @Composable
@@ -242,24 +323,33 @@ private fun PizzaRow(pizza: Pizza, state: String, stateColor: Color) {
     }
 }
 
-/** The orders the kitchen has heard of, each with how it ended, and on the line with the ticket the reader wrote for it. */
+/** The orders the kitchen has heard of, each with how it ended, the way it took across the board, and the ticket it got. */
 @Composable
-private fun Rail(shift: Service) {
+private fun Rail(controller: KitchenController, shift: BoardShift) {
     val colors = Theme.colors
     val kitchen = shift.kitchen
+    val board = controller.playing
     val heard = kitchen.standing.filter { it.placedAt <= kitchen.minute }
-    val tickets = (shift as? LineShift)?.tickets
     Panel("Orders", Modifier.fillMaxWidth(), trailing = { Label("${heard.size} of ${kitchen.orders.size} placed") }) {
         if (heard.isEmpty()) Body("No order yet.", color = colors.dim)
         heard.forEach { order ->
             val (status, color) = order.status(kitchen.minute, colors)
+            val route = shift.routes[order.number]
+            val ticket = shift.tickets[order.number]
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Label("#${order.number} / table ${order.table} / due ${order.dueAt}", color = colors.ink)
                     Label(status, color = color)
                 }
                 Body(order.text, color = if (order.outcome == Outcome.CANCELLED) colors.dim else colors.ink)
-                tickets?.get(order.number)?.let { toppings -> Body("ticket: ${toppings.joinToString { it.word }}", color = colors.dim) }
+                if (route != null) {
+                    Body("went: " + (listOf("rail") + route.map { board.piece(it)?.kind?.tile ?: it } + "kitchen").joinToString(" > "), color = colors.dim)
+                }
+                when {
+                    ticket != null -> Body("ticket: ${ticket.joinToString { it.word }}", color = colors.dim)
+                    route != null && order.outcome != Outcome.CANCELLED && shift.written.none { it.order == order.number } ->
+                        Body("no ticket, so the kitchen makes nothing for it", color = colors.red)
+                }
             }
         }
     }
@@ -280,9 +370,10 @@ private fun Order.status(minute: Int, colors: Palette): Pair<String, Color> =
 private fun Log(shift: Service) {
     val colors = Theme.colors
     Panel("Kitchen log", Modifier.fillMaxWidth(), trailing = { Label("stream()") }) {
-        if (shift.log.isEmpty()) Body("Nothing has happened yet.", color = colors.dim)
+        if (shift.log.none { it.minute <= shift.kitchen.minute }) Body("Nothing has happened yet.", color = colors.dim)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            shift.log.takeLast(LOG_LINES).forEach { event ->
+            // A station logs what it does with the minute it is done, which can be ahead of the clock.
+            shift.log.filter { it.minute <= shift.kitchen.minute }.sortedBy { it.minute }.takeLast(LOG_LINES).forEach { event ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Label(event.minute.toString().padStart(2, '0'), Modifier.padding(top = 4.dp).width(22.dp))
                     Label(event.station, Modifier.padding(top = 4.dp).width(52.dp), color = if (event.refused) colors.red else colors.ink)
@@ -297,13 +388,16 @@ private const val LOG_LINES = 8
 
 /** How the shift went, in the lines that one shift is compared with another on. */
 @Composable
-private fun Result(controller: KitchenController, shift: Service) {
-    Panel("Shift over / ${controller.playing.title}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
-        shift.report().lines().forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
+private fun Result(controller: KitchenController, shift: BoardShift) {
+    val played = PlayedShift(controller.playing, controller.modelLabel, controller.scripted, shift)
+    Panel("Shift over / ${controller.playing.summary}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
+        // What each station cost is in the panel of the stations.
+        shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
+        Spec("goals", "${KITCHEN_GOALS.count { it.metBy(played) }} of ${KITCHEN_GOALS.size} reached on this board")
     }
 }
 
-/** The shifts of this session side by side, which is what the stage is for: the same orders, another kitchen or another model. */
+/** The shifts of this session side by side, which is what the stage is for: the same orders on another board, or with another model. */
 @Composable
 private fun Shifts(controller: KitchenController, modifier: Modifier = Modifier) {
     if (controller.history.isEmpty()) return
@@ -312,14 +406,17 @@ private fun Shifts(controller: KitchenController, modifier: Modifier = Modifier)
         controller.history.forEachIndexed { index, played ->
             val score = played.shift.kitchen.score()
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Label("${index + 1} / ${played.layout.title} / ${played.model}", color = colors.ink)
+                Label("${index + 1} / ${played.board.summary} / ${played.model}", color = colors.ink)
                 Body(
                     "${score.points} points, ${played.shift.spent.grouped()} tokens, minute ${played.shift.kitchen.minute}",
                     color = colors.dim,
                 )
+                if (!controller.running && played.board != controller.board) {
+                    PillButton("Use board ${index + 1} again", { controller.load(played.board) }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+                }
             }
         }
-        Body("Try the same orders with another kitchen, or with another model under Options.", color = colors.dim)
+        Body("Try the same orders on another board, or with another model under Options.", color = colors.dim)
     }
 }
 

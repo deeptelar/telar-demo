@@ -8,67 +8,92 @@ import dev.deeptelar.telar.GraphConfig
 import dev.deeptelar.telar.GraphEvent
 import dev.deeptelar.telar.NodeExecutionException
 import dev.deeptelar.telar.agent.ChatModel
-import dev.deeptelar.telar.demo.kitchen.LineShift
-import dev.deeptelar.telar.demo.kitchen.SHIFT_STEPS
+import dev.deeptelar.telar.demo.kitchen.BOARD_STEPS
+import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.BoardShift
+import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Outcome
+import dev.deeptelar.telar.demo.kitchen.PieceKind
+import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
-import dev.deeptelar.telar.demo.kitchen.line
+import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lunchRush
-import dev.deeptelar.telar.demo.kitchen.scriptedChef
-import dev.deeptelar.telar.demo.kitchen.scriptedMaker
-import dev.deeptelar.telar.demo.kitchen.scriptedOven
-import dev.deeptelar.telar.demo.kitchen.scriptedReader
-import dev.deeptelar.telar.demo.kitchen.shift
-import dev.deeptelar.telar.demo.kitchen.soloChef
+import dev.deeptelar.telar.demo.kitchen.scriptedStations
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 
 /**
- * How the kitchen of a shift is built. The orders are the same in each, so what differs in the
- * result is the kitchen.
+ * A shift that was played to its end, to compare with the next one.
+ *
+ * @property board the board it was played on.
+ * @property scripted `true` when no model was asked, so that its tokens are a guess.
  */
-enum class KitchenLayout(val title: String, val detail: String) {
-    Solo(
-        "Solo chef",
-        "One agent does everything. It is sent the whole conversation with every answer, so each answer costs more than the last.",
-    ),
-    Line(
-        "The line",
-        "Three stations work at the same time. The model only reads the orders. Plain code makes and bakes the pizzas, for no tokens.",
-    ),
-    LineOfModels(
-        "The line, a model at every station",
-        "The same three stations, with the model at each. A station is asked with what it needs to know now, not with a conversation.",
-    ),
-}
-
-/** A shift that was played to its end, to compare with the next one. */
-data class PlayedShift(val layout: KitchenLayout, val model: String, val shift: Service)
+data class PlayedShift(val board: Blueprint, val model: String, val scripted: Boolean, val shift: Service)
 
 /**
- * Runs the kitchen rush and exposes the shift as Compose state.
+ * Something to reach in the bonus stage.
+ *
+ * @property countsTokens `true` when it is about the tokens of a shift. Those are set for the
+ * scripted chefs, whose tokens are the same every time. A real model counts its own.
+ */
+class Goal(val text: String, val countsTokens: Boolean, private val reached: (Service) -> Boolean) {
+    fun metBy(played: PlayedShift): Boolean = (played.scripted || !countsTokens) && reached(played.shift)
+}
+
+private fun Service.everyOrderOnTime(): Boolean = kitchen.score().let { it.points == it.orders * Score.ON_TIME_POINTS } && kitchen.standing.none { it.outcome == Outcome.OPEN }
+
+/** The goals, the easiest first. The second needs a sorter, and the third needs two. */
+val KITCHEN_GOALS: List<Goal> =
+    listOf(
+        Goal("Serve every order right and on time.", countsTokens = false) { it.everyOrderOnTime() },
+        Goal("Do it for fewer than 5,000 tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < 5_000 },
+        Goal("Do it for fewer than 4,000 tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < 4_000 },
+    )
+
+/**
+ * The bonus stage: holds the board the player draws, runs a shift on it, and exposes both as Compose state.
  *
  * @param realModel the model of the service the player chose under Options, or `null` when the
  * scripted chefs do the work.
  * @param modelLabel what that model is called.
  * @param minuteMillis how long a minute of the kitchen is shown. The scripted chefs answer at once,
  * so without it a shift would be over before anyone saw it.
+ * @param stepMillis how long an order is shown at each station of the board it goes through.
  * @param played where the shifts that ran to their end are kept.
+ * @param drawn where the board is kept.
  */
 class KitchenController(
     private val realModel: ChatModel?,
     val modelLabel: String,
     private val scope: CoroutineScope,
     private val minuteMillis: Long = if (realModel == null) 250 else 40,
+    private val stepMillis: Long = 0,
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
+    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
 ) {
     val scripted: Boolean = realModel == null
 
-    var layout: KitchenLayout by mutableStateOf(KitchenLayout.Line)
+    /** The board as the player has drawn it. It comes from outside, like [history]. */
+    var board: Blueprint by drawn
+        private set
+
+    /** What keeps a shift from starting on [board]. */
+    var problems: List<String> by mutableStateOf(board.problems())
+        private set
+
+    /** The tile the player pressed last: a station or the rail. Its arrows are shown and can be drawn. */
+    var selected: String? by mutableStateOf(null)
+        private set
+
+    /** The way out of [selected] that the next tile the player presses is connected to. */
+    var armed: Exit? by mutableStateOf(null)
+        private set
+
+    /** The empty place the player is choosing a station for. */
+    var picking: Int? by mutableStateOf(null)
         private set
 
     /** The most tokens the chefs of a shift may use together. */
@@ -76,11 +101,19 @@ class KitchenController(
         private set
 
     /** The shift as of its last minute that was shown, or `null` before the first shift. */
-    var shift: Service? by mutableStateOf(null)
+    var shift: BoardShift? by mutableStateOf(null)
         private set
 
-    /** The layout of [shift], which stays when the player picks another one for the next shift. */
-    var playing: KitchenLayout by mutableStateOf(KitchenLayout.Line)
+    /** The board of [shift], which stays when the player draws another one for the next shift. */
+    var playing: Blueprint by mutableStateOf(board)
+        private set
+
+    /** The station that has an order right now, while a shift runs. */
+    var at: String? by mutableStateOf(null)
+        private set
+
+    /** The number of the order that is on the board right now. */
+    var reading: Int? by mutableStateOf(null)
         private set
     var running: Boolean by mutableStateOf(false)
         private set
@@ -102,37 +135,109 @@ class KitchenController(
 
     private var job: Job? = null
 
-    fun choose(layout: KitchenLayout) {
-        if (!running) this.layout = layout
+    /** The goals with whether a shift of this session reached each. */
+    val goals: List<Pair<Goal, Boolean>> get() = KITCHEN_GOALS.map { goal -> goal to history.any(goal::metBy) }
+
+    /** The player pressed an empty place: the stations to choose from are offered for it. */
+    fun tapSlot(slot: Int) {
+        if (running || board.at(slot) != null) return
+        picking = if (picking == slot) null else slot
+        selected = null
+        armed = null
+    }
+
+    /** Puts a station of [kind] on the place the player pressed, and selects it so that its arrow can be drawn next. */
+    fun put(kind: PieceKind) {
+        val slot = picking ?: return
+        if (running) return
+        draw(board.place(slot, kind))
+        select(board.at(slot)?.id)
+    }
+
+    /**
+     * The player pressed the tile of [id]: a station, the rail or the kitchen. With a way out armed,
+     * the arrow from it is drawn to this tile. Otherwise the tile is selected, or let go when it
+     * was selected already.
+     */
+    fun tap(id: String) {
+        if (running) return
+        val from = selected
+        val exit = armed
+        if (from != null && exit != null && id != from) {
+            val connected = board.connect(from, exit, id)
+            if (connected != board) {
+                draw(connected)
+                armed = board.freeExit(from)
+                return
+            }
+        }
+        // The kitchen has no arrows of its own to show.
+        if (id != Blueprint.KITCHEN) select(id.takeIf { it != selected })
+    }
+
+    /** Arms a way out of the selected tile again, so that its arrow can be drawn somewhere else. */
+    fun redraw(exit: Exit) {
+        val from = selected ?: return
+        if (running) return
+        draw(board.disconnect(from, exit))
+        armed = exit
+    }
+
+    /** Takes the selected station off the board, with its arrows. */
+    fun remove() {
+        val id = selected?.takeIf { board.piece(it) != null } ?: return
+        if (running) return
+        draw(board.remove(id))
+        select(null)
+    }
+
+    /** Replaces the board with [blueprint]: an empty one, or the board of an earlier shift. */
+    fun load(blueprint: Blueprint) {
+        if (running) return
+        draw(blueprint)
+        select(null)
+    }
+
+    private fun select(id: String?) {
+        selected = id
+        armed = id?.let(board::freeExit)
+        picking = null
+    }
+
+    private fun draw(next: Blueprint) {
+        board = next
+        problems = next.problems()
     }
 
     fun budget(tokens: Int) {
         if (!running) budget = tokens.coerceIn(1_000, MAX_BUDGET)
     }
 
-    /** Starts a new shift in the chosen kitchen. */
+    /** Starts a new shift on the board, if the board can run. */
     fun start() {
-        if (running) return
-        val chosen = layout
+        if (running || problems.isNotEmpty()) return
+        val drawn = board
+        select(null)
         running = true
         finished = false
         error = null
-        playing = chosen
+        playing = drawn
         job = scope.launch {
             try {
-                states(chosen).collect { next ->
-                    // A minute of the kitchen takes a moment on the screen, so that the shift can be watched.
-                    delay((next.kitchen.minute - (shift?.kitchen?.minute ?: 0)).coerceAtLeast(0) * minuteMillis)
-                    shift = next
-                }
+                val begin = BoardShift(lunchRush(), budget)
+                shift = begin
+                val models = realModel?.let { model -> { _: PieceKind -> model } } ?: scriptedStations(begin.kitchen)
+                drawn.kitchen(models).stream(begin, GraphConfig(maxIterations = BOARD_STEPS)).collect { show(it) }
                 finished = true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = (if (e is NodeExecutionException) e.cause?.message else null) ?: e.message ?: e.toString()
+                error = e.reason()
             } finally {
                 running = false
-                if (finished) shift?.let { history = history + PlayedShift(chosen, modelLabel, it) }
+                at = null
+                reading = null
+                if (finished) shift?.let { history = history + PlayedShift(drawn, modelLabel, scripted, it) }
             }
         }
     }
@@ -141,30 +246,35 @@ class KitchenController(
         job?.cancel()
     }
 
-    /** The shift after each minute in which something was done, from the first one on. */
-    private fun states(layout: KitchenLayout): Flow<Service> {
-        val kitchen = lunchRush()
-        return when (layout) {
-            KitchenLayout.Solo -> {
-                val begin = shift(kitchen, budget)
-                shift = begin
-                soloChef(realModel ?: scriptedChef(kitchen))
-                    .stream(begin, GraphConfig(maxIterations = SHIFT_STEPS))
-                    .mapNotNull { event -> (event as? GraphEvent.NodeCompleted)?.state }
+    /** Shows what the run of the kitchen's graph tells: where the order on the board is, and the kitchen after each minute. */
+    private suspend fun show(event: GraphEvent<BoardShift>) {
+        when (event) {
+            // The board is a subgraph, so its nodes report inside an event of the node that runs it.
+            is GraphEvent.SubgraphEvent -> (event.innermost as? GraphEvent.NodeStarted<*>)?.let { started ->
+                at = started.node
+                reading = event.state.slip?.order
+                delay(stepMillis)
             }
-            else -> {
-                val begin = LineShift(kitchen, budget)
-                shift = begin
-                val everywhere = layout == KitchenLayout.LineOfModels
-                line(
-                    reader = realModel ?: scriptedReader(kitchen),
-                    prep = if (everywhere) realModel ?: scriptedMaker() else null,
-                    oven = if (everywhere) realModel ?: scriptedOven() else null,
-                ).stream(begin, GraphConfig(maxIterations = SHIFT_STEPS))
-                    // The three stations end a minute together, so the kitchen is shown once for each minute.
-                    .mapNotNull { event -> (event as? GraphEvent.NodeCompleted)?.takeIf { it.node == "clock" }?.state }
+            is GraphEvent.NodeCompleted -> when (event.node) {
+                "board" -> {
+                    at = null
+                    reading = null
+                }
+                "clock" -> {
+                    // A minute of the kitchen takes a moment on the screen, so that the shift can be watched.
+                    delay((event.state.kitchen.minute - (shift?.kitchen?.minute ?: 0)).coerceAtLeast(0) * minuteMillis)
+                    shift = event.state
+                }
             }
+            else -> Unit
         }
+    }
+
+    /** What went wrong, in the words of the model's service when a station's model failed. */
+    private fun Throwable.reason(): String {
+        var failure: Throwable = this
+        while (failure is NodeExecutionException) failure = failure.cause ?: break
+        return failure.message ?: failure.toString()
     }
 
     companion object {

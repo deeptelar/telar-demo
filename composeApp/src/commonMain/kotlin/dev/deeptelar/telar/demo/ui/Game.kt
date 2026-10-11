@@ -30,6 +30,7 @@ import dev.deeptelar.telar.demo.game.Stage
 import dev.deeptelar.telar.demo.game.Ticket
 import dev.deeptelar.telar.demo.game.changesSince
 import dev.deeptelar.telar.demo.game.stages
+import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.storage.KeyValueStore
 
 enum class Phase {
@@ -316,6 +317,7 @@ class StageController(
  * [model] is never `null`: the stages always have someone to ask.
  * @param modelLabel what [realModel] is called.
  * @param played the shifts of the bonus stage that ran to their end.
+ * @param drawn the board of the bonus stage.
  */
 class Game(
     model: ChatModel,
@@ -326,13 +328,23 @@ class Game(
     realModel: ChatModel? = null,
     modelLabel: String = "scripted",
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
+    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
 
     /** The bonus stage. Its chefs are scripted unless the player chose a real model. */
     val kitchen: KitchenController =
-        KitchenController(realModel, modelLabel, scope, minuteMillis = if (workMillis == 0L) 0 else if (realModel == null) 250 else 40, played = played)
+        KitchenController(
+            realModel,
+            modelLabel,
+            scope,
+            minuteMillis = if (workMillis == 0L) 0 else if (realModel == null) 250 else 40,
+            // With a real model an order stays at a station for as long as the model takes to answer.
+            stepMillis = if (workMillis == 0L || realModel != null) 0 else 160,
+            played = played,
+            drawn = drawn,
+        )
 
     val controllers: List<StageController> = stages.map { StageController(it, Desk(model, workMillis), saves, scope, ::markCleared) }
 

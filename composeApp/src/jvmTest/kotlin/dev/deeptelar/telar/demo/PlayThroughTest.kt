@@ -61,7 +61,7 @@ class PlayThroughTest {
     }
 
     @Test
-    fun aPlayerRunsAShiftOfTheKitchenRushInTwoKitchens() = runComposeUiTest {
+    fun aPlayerDrawsABetterBoardForTheKitchenRush() = runComposeUiTest {
         lateinit var game: Game
         setContent {
             val scope = rememberCoroutineScope()
@@ -70,20 +70,42 @@ class PlayThroughTest {
             PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = { screen = it }, onSave = {}) }
         }
 
+        // The board a player finds sends every order to the menu lookup.
         onNodeWithText("BONUS: KITCHEN RUSH").performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
+        onNodeWithContentDescription("Board: rail to lookup, lookup to kitchen").performScrollTo().assertIsDisplayed()
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
 
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
-        onNodeWithText("1100 of 1100").performScrollTo().assertIsDisplayed()
-        onNodeWithText("1 / THE LINE / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("400 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1 / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
 
-        // The same orders with one chef.
-        onNodeWithText("SOLO CHEF").performScrollTo().performClick()
+        // The lookup goes, and a reader that is told everything takes its place.
+        onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
+        onNodeWithText("REMOVE THE STATION").performScrollTo().performClick()
+        onNodeWithText("The rail has no arrow. Draw one to the station that gets every order first.").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Place 1").performScrollTo().performClick()
+        onNodeWithText("READER WITH THE BOOK").performScrollTo().performClick()
+        onNodeWithText("press the tile it goes to").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithContentDescription("Station bookReader").performScrollTo().performClick()
+        onNodeWithContentDescription("Board: bookReader to kitchen, rail to bookReader").performScrollTo().assertIsDisplayed()
+
+        onNodeWithText("SHOW THE CODE OF THIS BOARD").performScrollTo().performClick()
+        onNodeWithContentDescription("The code of the board").performScrollTo().assertIsDisplayed()
+
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
-        onNodeWithText("2 / SOLO CHEF / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1100 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithText("2 / BOOK / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
+
+        // The board of an earlier shift can be taken up again.
+        onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
+        assertEquals("lookup", game.kitchen.board.summary)
 
         // The stage select screen leads here too.
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()

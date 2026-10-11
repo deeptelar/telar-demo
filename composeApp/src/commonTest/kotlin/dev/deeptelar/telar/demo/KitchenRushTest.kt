@@ -4,7 +4,10 @@ import androidx.compose.runtime.mutableStateOf
 import dev.deeptelar.telar.GraphConfig
 import dev.deeptelar.telar.agent.ChatModel
 import dev.deeptelar.telar.agent.ChatModelException
+import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.kitchen.LineShift
+import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.SHIFT_STEPS
 import dev.deeptelar.telar.demo.kitchen.Shift
 import dev.deeptelar.telar.demo.kitchen.Topping
@@ -15,8 +18,8 @@ import dev.deeptelar.telar.demo.kitchen.scriptedChef
 import dev.deeptelar.telar.demo.kitchen.scriptedReader
 import dev.deeptelar.telar.demo.kitchen.shift
 import dev.deeptelar.telar.demo.kitchen.soloChef
+import dev.deeptelar.telar.demo.ui.KITCHEN_GOALS
 import dev.deeptelar.telar.demo.ui.KitchenController
-import dev.deeptelar.telar.demo.ui.KitchenLayout
 import dev.deeptelar.telar.demo.ui.PlayedShift
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -31,7 +34,8 @@ import kotlin.test.assertTrue
 
 /**
  * The bonus stage. The kitchen is the sample of the library, copied, and the first two tests hold
- * the copy to the results the sample has there. The others drive the stage the way its buttons do.
+ * the copy to the results the sample has there. The others drive the stage the way its buttons do,
+ * on the board that the player draws. [KitchenBoardTest] has the tests of the board itself.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class KitchenRushTest {
@@ -73,8 +77,9 @@ class KitchenRushTest {
     @Test
     fun aShiftIsShownMinuteByMinuteAndKeptWhenItIsOver() = runTest {
         val kitchen = kitchen()
-        assertEquals(KitchenLayout.Line, kitchen.layout)
+        assertEquals(Blueprint.FIRST, kitchen.board)
         assertNull(kitchen.shift)
+        kitchen.load(boardWith(PieceKind.BOOK_READER))
 
         kitchen.start()
         advanceTimeBy(4_050)
@@ -82,41 +87,153 @@ class KitchenRushTest {
         assertTrue(kitchen.running)
         assertEquals(40, kitchen.shift!!.kitchen.minute)
         assertFalse(kitchen.finished)
-        // The kitchen cannot be rebuilt in the middle of a shift.
-        kitchen.choose(KitchenLayout.Solo)
-        assertEquals(KitchenLayout.Line, kitchen.layout)
+        // The board cannot be changed in the middle of a shift.
+        kitchen.load(Blueprint())
+        kitchen.tapSlot(3)
+        kitchen.tap("bookReader")
+        assertEquals(boardWith(PieceKind.BOOK_READER), kitchen.board)
+        assertNull(kitchen.picking)
+        assertNull(kitchen.selected)
 
         advanceUntilIdle()
 
         assertFalse(kitchen.running)
         assertTrue(kitchen.finished)
         assertEquals(1100, kitchen.shift!!.kitchen.score().points)
-        assertEquals(listOf(KitchenLayout.Line), kitchen.history.map { it.layout })
+        assertEquals(listOf(boardWith(PieceKind.BOOK_READER)), kitchen.history.map { it.board })
 
-        kitchen.choose(KitchenLayout.Solo)
+        // The next shift is on another board, and the shift that is shown keeps the board it ran on.
+        kitchen.load(BEST_BOARD)
         kitchen.start()
         advanceUntilIdle()
+        kitchen.load(Blueprint.FIRST)
 
-        assertEquals(KitchenLayout.Solo, kitchen.playing)
-        assertEquals(listOf(78, 85), kitchen.history.map { it.shift.kitchen.minute })
+        assertEquals(BEST_BOARD, kitchen.playing)
+        assertEquals(listOf(78, 78), kitchen.history.map { it.shift.kitchen.minute })
         assertEquals(listOf("scripted", "scripted"), kitchen.history.map { it.model })
+        assertTrue(kitchen.history.all { it.scripted })
+        assertTrue(kitchen.history[1].shift.spent < kitchen.history[0].shift.spent)
     }
 
     @Test
-    fun everyKitchenRunsWithTheScriptedChefs() = runTest {
+    fun thePlayerDrawsTheBoardByPressingTiles() = runTest {
         val kitchen = kitchen()
 
-        KitchenLayout.entries.forEach { layout ->
-            kitchen.choose(layout)
+        // The station that is there goes away, and its arrows with it.
+        kitchen.tap("lookup")
+        assertEquals("lookup", kitchen.selected)
+        assertNull(kitchen.armed)
+        kitchen.remove()
+        assertEquals(Blueprint(), kitchen.board)
+        assertNull(kitchen.selected)
+        assertEquals(listOf("The rail has no arrow. Draw one to the station that gets every order first."), kitchen.problems)
+        kitchen.start()
+        assertFalse(kitchen.running)
+
+        // An empty place offers the stations. The one that is put there is selected, with its arrow ready to be drawn.
+        kitchen.tapSlot(2)
+        assertEquals(2, kitchen.picking)
+        kitchen.put(PieceKind.ONLY_MENU)
+        assertNull(kitchen.picking)
+        assertEquals("onlyMenu", kitchen.selected)
+        assertEquals(Exit.YES, kitchen.armed)
+        kitchen.tapSlot(2)
+        assertNull(kitchen.picking)
+
+        kitchen.tapSlot(3)
+        kitchen.put(PieceKind.LOOKUP)
+        kitchen.tap(Blueprint.KITCHEN)
+        assertEquals(Blueprint.KITCHEN, kitchen.board.target("lookup", Exit.NEXT))
+        assertEquals("lookup", kitchen.selected)
+        assertNull(kitchen.armed)
+        kitchen.tapSlot(5)
+        kitchen.put(PieceKind.BOOK_READER)
+        kitchen.tap(Blueprint.KITCHEN)
+
+        // A sorter gets its yes arrow first and then its no arrow.
+        kitchen.tap("onlyMenu")
+        kitchen.tap("lookup")
+        assertEquals(Exit.NO, kitchen.armed)
+        kitchen.tap("bookReader")
+        assertNull(kitchen.armed)
+        kitchen.tap(Blueprint.RAIL)
+        assertEquals(Exit.NEXT, kitchen.armed)
+        // No arrow goes to the tile it starts at: pressing it again lets it go.
+        kitchen.tap(Blueprint.RAIL)
+        assertNull(kitchen.selected)
+        kitchen.tap(Blueprint.RAIL)
+        kitchen.tap("onlyMenu")
+        assertEquals(emptyList(), kitchen.problems)
+        assertEquals("plain? + lookup + book", kitchen.board.summary)
+
+        // An arrow that is there can be drawn somewhere else.
+        kitchen.tap("onlyMenu")
+        kitchen.redraw(Exit.NO)
+        assertEquals(Exit.NO, kitchen.armed)
+        assertEquals(1, kitchen.problems.size)
+        kitchen.tap(Blueprint.KITCHEN)
+        assertEquals(Blueprint.KITCHEN, kitchen.board.target("onlyMenu", Exit.NO))
+        kitchen.redraw(Exit.NO)
+        kitchen.tap("bookReader")
+        // The kitchen has no arrows, so it is never selected.
+        kitchen.tap(Blueprint.KITCHEN)
+        assertEquals("onlyMenu", kitchen.selected)
+
+        kitchen.start()
+        assertNull(kitchen.selected)
+        advanceUntilIdle()
+        assertEquals(1100, kitchen.shift!!.kitchen.score().points)
+        assertEquals(listOf("onlyMenu", "lookup"), kitchen.shift!!.routes[1])
+    }
+
+    @Test
+    fun theGoalsAreReachedByBetterBoards() = runTest {
+        val kitchen = kitchen()
+
+        fun reached() = kitchen.goals.map { it.second }
+
+        assertEquals(listOf(false, false, false), reached())
+        listOf(
+            Blueprint.FIRST to listOf(false, false, false),
+            boardWith(PieceKind.READER) to listOf(false, false, false),
+            boardWith(PieceKind.BOOK_READER) to listOf(true, false, false),
+            SORTED_BOARD to listOf(true, true, false),
+            BEST_BOARD to listOf(true, true, true),
+        ).forEach { (board, expected) ->
+            kitchen.load(board)
             kitchen.start()
             advanceUntilIdle()
-            assertTrue(kitchen.finished, layout.title)
+            assertEquals(expected, reached(), board.summary)
         }
+        // A goal that was reached stays reached, whatever the next board does.
+        kitchen.load(Blueprint.FIRST)
+        kitchen.start()
+        advanceUntilIdle()
+        assertEquals(listOf(true, true, true), reached())
+        assertEquals(6, kitchen.history.size)
 
-        assertEquals(KitchenLayout.entries, kitchen.history.map { it.layout })
-        // Chefs who do one thing with each answer, at a minute an answer, are slower than plain code.
-        assertTrue(kitchen.history.last().shift.kitchen.score().points < 1100)
-        assertTrue(kitchen.history.last().shift.desks.getValue("oven").answers > 0)
+        // The tokens of a real model are its own, so only the scripted chefs are held to the token goals.
+        val real = PlayedShift(BEST_BOARD, "a model", scripted = false, kitchen.history[4].shift)
+        assertEquals(listOf(true, false, false), KITCHEN_GOALS.map { it.metBy(real) })
+    }
+
+    @Test
+    fun anOrderIsShownAtTheStationThatHasIt() = runTest {
+        val kitchen = KitchenController(null, "scripted", this, minuteMillis = 0, stepMillis = 100)
+        kitchen.load(SORTED_BOARD)
+
+        kitchen.start()
+        advanceTimeBy(50)
+        assertEquals("onlyMenu" to 1, kitchen.at to kitchen.reading)
+        advanceTimeBy(100)
+        assertEquals("lookup" to 1, kitchen.at to kitchen.reading)
+        advanceTimeBy(200)
+        assertEquals("bookReader" to 2, kitchen.at to kitchen.reading)
+
+        advanceUntilIdle()
+        assertNull(kitchen.at)
+        assertNull(kitchen.reading)
+        assertTrue(kitchen.finished)
     }
 
     @Test
@@ -137,6 +254,8 @@ class KitchenRushTest {
     @Test
     fun aModelThatFailsEndsTheShiftAndSaysWhy() = runTest {
         val kitchen = KitchenController(ChatModel { throw ChatModelException("The key is not valid.") }, "broken", this, minuteMillis = 0)
+        assertFalse(kitchen.scripted)
+        kitchen.load(boardWith(PieceKind.READER))
 
         kitchen.start()
         advanceUntilIdle()
@@ -146,15 +265,19 @@ class KitchenRushTest {
         assertEquals("The key is not valid.", kitchen.error)
         assertEquals(emptyList(), kitchen.history)
 
-        // The next shift starts clean.
+        // A board without a model does not ask it, and the next shift starts clean.
+        kitchen.load(Blueprint.FIRST)
         kitchen.start()
         assertNull(kitchen.error)
         advanceUntilIdle()
+        assertTrue(kitchen.finished)
+        assertFalse(kitchen.history.single().scripted)
     }
 
     @Test
     fun theTokenBudgetEndsAShiftAndStaysWithinItsLimits() = runTest {
         val kitchen = kitchen()
+        kitchen.load(boardWith(PieceKind.BOOK_READER))
 
         kitchen.budget(10)
         assertEquals(1_000, kitchen.budget)
@@ -171,14 +294,17 @@ class KitchenRushTest {
     }
 
     @Test
-    fun theShiftsThatWerePlayedOutliveTheController() = runTest {
+    fun theShiftsAndTheBoardOutliveTheController() = runTest {
         val played = mutableStateOf(emptyList<PlayedShift>())
-        val first = KitchenController(null, "scripted", this, minuteMillis = 0, played = played)
+        val drawn = mutableStateOf(Blueprint.FIRST)
+        val first = KitchenController(null, "scripted", this, minuteMillis = 0, played = played, drawn = drawn)
 
+        first.load(SORTED_BOARD)
         first.start()
         advanceUntilIdle()
         // The player chose another model under Options, which makes a new controller.
-        val second = KitchenController(null, "another", this, minuteMillis = 0, played = played)
+        val second = KitchenController(null, "another", this, minuteMillis = 0, played = played, drawn = drawn)
+        assertEquals(SORTED_BOARD, second.board)
         second.start()
         advanceUntilIdle()
 

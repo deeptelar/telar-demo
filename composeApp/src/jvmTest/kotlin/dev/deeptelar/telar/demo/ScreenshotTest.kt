@@ -12,10 +12,10 @@ import org.jetbrains.skia.EncodedImageFormat
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.MemoryCheckpointer
 import dev.deeptelar.telar.demo.game.scriptedModel
+import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
-import dev.deeptelar.telar.demo.ui.KitchenLayout
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.PizzaTheme
 import dev.deeptelar.telar.demo.ui.Screen
@@ -123,21 +123,25 @@ class ScreenshotTest {
 
     @Test
     fun theKitchenRushCanBeDrawn() {
+        // The board a player finds, and the stations an empty place offers.
         shoot("kitchen", Screen.Kitchen)
+        game.kitchen.tapSlot(3)
+        shoot("kitchen-picking", Screen.Kitchen, height = 1500)
 
-        // The line, in the rush: four orders came in together.
+        // A board with two sorters, with the arrows of one of them being drawn.
+        game.kitchen.load(BEST_BOARD)
+        game.kitchen.tap("looksBack")
+        game.kitchen.redraw(Exit.NO)
+        shoot("kitchen-drawing", Screen.Kitchen, height = 1200)
+        game.kitchen.tap("reader")
+
+        // In the rush: four orders came in together.
         game.kitchen.start()
-        scope.advanceTimeBy(12_500)
+        scope.advanceTimeBy(16_000)
         shoot("kitchen-running", Screen.Kitchen, height = 2000)
         scope.advanceUntilIdle()
         shoot("kitchen-over", Screen.Kitchen, height = 2300)
-
-        // The same orders with one chef, to compare.
-        game.kitchen.choose(KitchenLayout.Solo)
-        game.kitchen.start()
-        scope.advanceUntilIdle()
-        shoot("kitchen-solo-over", Screen.Kitchen, height = 2300)
-        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 4200)
+        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 5200)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */
