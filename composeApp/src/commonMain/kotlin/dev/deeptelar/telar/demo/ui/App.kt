@@ -101,6 +101,7 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                                 )
                                 Screen.Options -> OptionsScreen(settings, game, onSave) { onNavigate(Screen.Stages) }
                             }
+                            BuiltWithTelar()
                         }
                     }
                 }

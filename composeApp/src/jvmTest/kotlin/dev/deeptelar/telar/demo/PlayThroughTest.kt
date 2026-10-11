@@ -1,10 +1,13 @@
 package dev.deeptelar.telar.demo
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
@@ -103,5 +106,34 @@ class PlayThroughTest {
         onNodeWithText("gpt-5-mini").assertIsDisplayed()
         screen = Screen.Play(7)
         onNodeWithText("none. This stage is scripted only.").assertIsDisplayed()
+    }
+
+    @Test
+    fun everyScreenLinksToTheLibrary() = runComposeUiTest {
+        val opened = mutableListOf<String>()
+        var screen by mutableStateOf<Screen>(Screen.Title)
+        setContent {
+            val scope = rememberCoroutineScope()
+            val game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 0) }
+            val links = object : UriHandler {
+                override fun openUri(uri: String) {
+                    opened += uri
+                }
+            }
+            CompositionLocalProvider(LocalUriHandler provides links) {
+                PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = {}, onSave = {}) }
+            }
+        }
+
+        onNodeWithText("BUILT WITH TELAR / GITHUB").performClick()
+
+        // On the other screens the link is at the end of the page.
+        val pages = listOf(Screen.Stages, Screen.Play(1), Screen.Play(8), Screen.Options)
+        pages.forEach {
+            screen = it
+            onNodeWithText("BUILT WITH TELAR / GITHUB").performScrollTo().performClick()
+        }
+
+        assertEquals(List(pages.size + 1) { "https://github.com/deeptelar/telar" }, opened)
     }
 }
