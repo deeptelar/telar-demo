@@ -16,6 +16,8 @@ data class Cell(val column: Int, val row: Int)
  * @property board where each node of the graph is drawn. The arrows come from the graph itself.
  * @property pauseBefore the nodes the run stops before, to wait for the player.
  * @property usesModel whether a node asks the chat model.
+ * @property readsMessage whether a node reads the customer's message. A desk that does one job for
+ * every ticket does not, and a message a player writes changes nothing there.
  * @property function the name of the function that builds the graph, to find its source by.
  */
 class Stage(
@@ -27,6 +29,7 @@ class Stage(
     val board: Map<String, Cell>,
     val pauseBefore: Set<String> = emptySet(),
     val usesModel: Boolean = false,
+    val readsMessage: Boolean = true,
     val function: String,
     val graph: (Desk) -> CompiledGraph<Ticket>,
 ) {
@@ -97,6 +100,7 @@ val stages: List<Stage> = listOf(
             "answer" to Cell(2, 1),
             END to Cell(3, 1),
         ),
+        readsMessage = false,
         function = "parallel",
         graph = HelpDesks::parallel,
     ),
@@ -109,6 +113,7 @@ val stages: List<Stage> = listOf(
         inbox = listOf(refund, Mail("Cleo", "Wrong toppings again. Refund, please.")),
         board = row("prepare", HelpDesks.PAY),
         pauseBefore = setOf(HelpDesks.PAY),
+        readsMessage = false,
         function = "savePoints",
         graph = HelpDesks::savePoints,
     ),
@@ -137,6 +142,7 @@ val stages: List<Stage> = listOf(
             "saved, so a retry starts at the node that failed, not at the beginning.",
         inbox = listOf(delivery),
         board = row("greet", HelpDesks.KITCHEN),
+        readsMessage = false,
         function = "gameOver",
         graph = { desk -> HelpDesks.gameOver(desk) },
     ),

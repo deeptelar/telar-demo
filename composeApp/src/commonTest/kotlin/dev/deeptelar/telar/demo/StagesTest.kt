@@ -57,6 +57,22 @@ class StagesTest {
     }
 
     @Test
+    fun aStageSaysWhetherItsDeskReadsTheMessage() = runTest {
+        stages.forEach { stage ->
+            val graph = stage.graph(desk)
+
+            // The phone of stage 7 is busy on every other call, so a run that failed is run again.
+            suspend fun replyTo(message: String): String {
+                val ticket = Ticket("Ana", message)
+                return runCatching { graph.invoke(ticket) }.getOrElse { graph.invoke(ticket) }.state.reply
+            }
+
+            val same = replyTo(stage.inbox.first().text) == replyTo("Thanks for the pizza, it was delicious")
+            assertEquals(stage.readsMessage, !same, "stage ${stage.number}")
+        }
+    }
+
+    @Test
     fun theLoopRewritesTheReplyUntilItPassesTheCheck() = runTest {
         val ticket = HelpDesks.loops(desk).invoke(Ticket("Ana", "My pizza is late!")).state
 
