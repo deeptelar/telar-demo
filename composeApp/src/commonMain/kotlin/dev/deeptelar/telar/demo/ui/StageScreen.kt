@@ -259,7 +259,10 @@ private fun Inbox(controller: StageController, modifier: Modifier = Modifier) {
                 }
             }
         }
-        Field(message, { message = it }, label = "Message from ${inbox[selected].from}. Edit it to try your own.", onEnter = run)
+        // Where no node reads the message, the player is not asked to write one, and is told why.
+        val reads = controller.stage.readsMessage
+        Field(message, { message = it }, label = "Message from ${inbox[selected].from}${if (reads) ". Edit it to try your own." else ""}", onEnter = run)
+        if (!reads) Body("This desk does one job for every ticket and does not read the message.", color = Theme.colors.dim)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             PillButton(if (controller.running) "Running" else "Run", run, emphasis = Emphasis.Primary, enabled = canRun)
             if (controller.running) PillButton("Stop", controller::stop)

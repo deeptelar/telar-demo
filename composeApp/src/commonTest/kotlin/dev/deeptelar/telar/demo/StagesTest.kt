@@ -57,12 +57,44 @@ class StagesTest {
     }
 
     @Test
+    fun aStageSaysWhetherItsDeskReadsTheMessage() = runTest {
+        stages.forEach { stage ->
+            val graph = stage.graph(desk)
+
+            // The phone of stage 7 is busy on every other call, so a run that failed is run again.
+            suspend fun replyTo(message: String): String {
+                val ticket = Ticket("Ana", message)
+                return runCatching { graph.invoke(ticket) }.getOrElse { graph.invoke(ticket) }.state.reply
+            }
+
+            val same = replyTo(stage.inbox.first().text) == replyTo("Thanks for the pizza, it was delicious")
+            assertEquals(stage.readsMessage, !same, "stage ${stage.number}")
+        }
+    }
+
+    @Test
     fun theLoopRewritesTheReplyUntilItPassesTheCheck() = runTest {
         val ticket = HelpDesks.loops(desk).invoke(Ticket("Ana", "My pizza is late!")).state
 
         assertEquals(3, ticket.attempts)
         assertEquals("", ticket.problem)
         assertEquals("Sorry Ana, your pizza is late. It arrives in 10 minutes.", ticket.reply)
+    }
+
+    @Test
+    fun theWriterOfTheLoopAnswersTheMessageItGot() = runTest {
+        val graph = HelpDesks.loops(desk)
+        suspend fun replyTo(message: String) = graph.invoke(Ticket("Ben", message)).state.reply
+
+        assertEquals("Sorry Ben, your pizza is late. It arrives in 10 minutes.", replyTo("Still no pizza. It has been an hour."))
+
+        // Anything else gets a reply that says why, and still goes through the loop.
+        val thanks = graph.invoke(Ticket("Ben", "Thanks for the pizza, it was delicious")).state
+        assertEquals("Sorry Ben, this desk only knows about late pizzas. A colleague will reply soon.", thanks.reply)
+        assertEquals(3, thanks.attempts)
+
+        // "late" counts as a word, not as a part of one.
+        assertEquals(thanks.reply, replyTo("I loved the chocolate pizza"))
     }
 
     @Test
