@@ -70,22 +70,44 @@ arrow, a conditional edge for each sorter. Every order is one run of that graph,
 (`START`) to the kitchen (`END`). A board that cannot run says why before the shift starts, and
 what the game does not check itself is reported by Telar when the graph is compiled.
 
+The orders of a shift are the same every time, and they are listed before it starts, with what
+the guests say later. Under each order is the way it takes across the board as you have drawn it.
+Only the sorters decide that way, and they are plain code, so the game knows it without asking a
+model.
+
 The board you start with sends every order to the menu lookup. It costs no tokens and gets most
 orders wrong. After a shift every order shows the way it took and the ticket it got, so you can see
 which station failed it. While the shift runs, the oven shows its places in pixels: a fire under
 each pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
 
-Each shift has goals: serve every order right and on time, and then do it for fewer tokens. In the
-dinner rush the six places are the puzzle. Every order on time needs the expediter and the second
-oven, and what is left of the board has to read six orders that come in at once, where a model
-takes a minute for each. The orders of a shift are the same every time, and the shifts you played
-are listed side by side.
+Each shift has three medals, and no board wins all of them:
+
+| Medal | What it takes | Lunch rush | Dinner rush |
+|---|---|---|---|
+| Right | Every order right and on time | 1100 points | 1200 points |
+| Cheap | That, for few tokens | Fewer than 4,000 | Fewer than 4,000 |
+| Small | That, on few stations | One station | Three stations or fewer |
+
+Cheap and Small pull against each other. One reader with the book reads every order right, which
+is the small board, and it pays for the whole book every time. The cheap board sorts its orders, so
+that a model reads only the ones that need it, and sorting takes stations. In the dinner rush the
+six places are the puzzle as well: every order on time needs the expediter and the second oven, and
+the sorters have to fit in what is left. The panel of the medals shows your best for each, and the
+shifts you played are listed side by side.
+
+A board fits in a link. "Copy a link to this board" gives an address that opens the stage with that
+shift chosen and that board drawn, and after a shift the result can be copied with it, to post:
+
+```
+Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens on 5 stations. Can you beat this board?
+https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2
+```
 
 Without a key the readers are scripted: the one with the book is always right, and the one without
 it cannot know what it was not told. Their token counts are a guess from the length of the text,
-the same every time, and the token goals are set for them. With a real model under Options every
-reader asks that model, the tokens are the ones the service reports, and the shift stops at a
-token budget.
+the same every time, and the medal for few tokens is set for them. With a real model under
+Options every reader asks that model, the tokens are the ones the service reports, and the shift
+stops at a token budget.
 
 The kitchen behind the board is the [kitchen sample](https://deeptelar.github.io/telar/samples.html)
 of Telar, copied into `kitchen/`. The board is not part of the sample.
@@ -151,7 +173,8 @@ and the Android app have no such limit.
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
 - `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
   `Blueprint.kt` is the board a player draws, `BoardShift.kt` turns it into the graph that runs a
-  shift, and `DinnerRush.kt` is the second shift
+  shift, `DinnerRush.kt` is the second shift, and `BoardText.kt` writes a board as the short text
+  that a link carries
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
@@ -159,7 +182,7 @@ and the Android app have no such limit.
   settings and the cleared stages
 - `ui/`: the screens, the board, `Game.kt`, which runs the graphs of the stages for them, and
   `KitchenController.kt`, which holds the board of the bonus stage and runs a shift on it.
-  `KitchenBoard.kt` draws that board
+  `KitchenBoard.kt` draws that board, and `KitchenLink.kt` is the link to one
 
 ## Tests
 

@@ -59,10 +59,12 @@ fun App() {
     val repository = remember { SettingsRepository(store) }
     val httpClient = remember { HttpClient() }
     var loaded by remember { mutableStateOf<Settings?>(null) }
-    var screen by remember { mutableStateOf<Screen>(Screen.Title) }
+    // A link to a board of the bonus stage opens that stage, with the board drawn.
+    val linked = remember { KitchenLink.of(pageFragment()) }
+    var screen by remember { mutableStateOf(if (linked == null) Screen.Title else Screen.Kitchen) }
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
-    val drawn = remember { mutableStateOf(Blueprint.FIRST) }
-    val chosen = remember { mutableStateOf(Rush.Lunch) }
+    val drawn = remember { mutableStateOf(linked?.board ?: Blueprint.FIRST) }
+    val chosen = remember { mutableStateOf(linked?.rush ?: Rush.Lunch) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {

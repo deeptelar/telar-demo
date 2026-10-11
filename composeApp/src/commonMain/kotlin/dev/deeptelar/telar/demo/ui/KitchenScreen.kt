@@ -20,12 +20,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.deeptelar.telar.demo.kitchen.Blueprint
@@ -86,6 +89,38 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
     }
 }
 
+/**
+ * What puts a text on the clipboard. `null` stands for the clipboard of the platform, and a test
+ * gives its own to see what was copied.
+ */
+val LocalCopyText = staticCompositionLocalOf<((String) -> Unit)?> { null }
+
+/** A button that copies what [text] returns, and says that it did until the text is another one. */
+@Composable
+private fun CopyButton(label: String, text: () -> String, modifier: Modifier = Modifier) {
+    // The new clipboard of Compose has no way to make an entry from a text that is the same on every platform.
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    val copy = LocalCopyText.current
+    var copied by remember { mutableStateOf<String?>(null) }
+    val now = text()
+    PillButton(
+        if (copied == now) "Copied" else label,
+        {
+            // A browser may refuse the clipboard. The game goes on without it.
+            try {
+                @Suppress("DEPRECATION")
+                if (copy != null) copy(now) else clipboard.setText(AnnotatedString(now))
+                copied = now
+            } catch (_: Exception) {
+                copied = null
+            }
+        },
+        modifier,
+        emphasis = Emphasis.Quiet,
+    )
+}
+
 /** Where the player draws the board and starts the shift. */
 @Composable
 private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
@@ -121,6 +156,10 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
                 "Token budget. The shift stops when it is spent.",
                 enabled = !controller.running,
             )
+        }
+        if (controller.problems.isEmpty()) {
+            val page = remember { pageAddress() ?: DEMO_ADDRESS }
+            CopyButton("Copy a link to this board", { KitchenLink(controller.rush, controller.board).address(page) }, Modifier.offset(x = (-10).dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (controller.running) {
@@ -468,6 +507,8 @@ private fun Result(controller: KitchenController, shift: BoardShift) {
         shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
         val won = rush.goals.filter { it.metBy(played) }.map { it.medal.title.lowercase() }
         Spec("medals", if (won.isEmpty()) "none on this board" else "${won.joinToString(" and ")} on this board")
+        val page = remember { pageAddress() ?: DEMO_ADDRESS }
+        CopyButton("Copy this result and a link to its board", { played.told(page) }, Modifier.offset(x = (-10).dp))
     }
 }
 

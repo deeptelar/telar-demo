@@ -18,14 +18,17 @@ import dev.deeptelar.telar.demo.kitchen.scriptedChef
 import dev.deeptelar.telar.demo.kitchen.scriptedReader
 import dev.deeptelar.telar.demo.kitchen.shift
 import dev.deeptelar.telar.demo.kitchen.soloChef
+import dev.deeptelar.telar.demo.kitchen.text
 import dev.deeptelar.telar.demo.ui.Bake
 import dev.deeptelar.telar.demo.ui.KitchenController
+import dev.deeptelar.telar.demo.ui.KitchenLink
 import dev.deeptelar.telar.demo.ui.Medal
 import dev.deeptelar.telar.demo.ui.PlayedShift
 import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.bake
 import dev.deeptelar.telar.demo.ui.bakeText
 import dev.deeptelar.telar.demo.ui.ovenPlaces
+import dev.deeptelar.telar.demo.ui.told
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -34,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -290,6 +294,39 @@ class KitchenRushTest {
 
         kitchen.choose(Rush.Lunch)
         assertEquals(listOf(true, true, false), kitchen.goals.map { it.second })
+    }
+
+    @Test
+    fun aLinkCarriesAShiftAndABoardForIt() = runTest {
+        val link = KitchenLink(Rush.Dinner, DINNER_BOARD)
+        assertEquals("kitchen=dinner.plxbo-413k0k2", link.fragment)
+        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2", link.address())
+        assertEquals("http://localhost:8080/#kitchen=lunch.l-----0k", KitchenLink(Rush.Lunch, Blueprint.FIRST).address("http://localhost:8080/"))
+
+        // Whoever opens the link finds the shift chosen and the board drawn, and it plays as it did for whoever sent it.
+        val opened = assertNotNull(KitchenLink.of("#" + link.fragment))
+        assertEquals(opened, KitchenLink.of(link.fragment))
+        assertEquals(Rush.Dinner to DINNER_BOARD.text(), opened.rush to opened.board.text())
+        val kitchen = KitchenController(null, "scripted", this, minuteMillis = 0, drawn = mutableStateOf(opened.board), chosen = mutableStateOf(opened.rush))
+        assertEquals(emptyList(), kitchen.problems)
+        kitchen.start()
+        advanceUntilIdle()
+        assertEquals(1200, kitchen.shift!!.kitchen.score().points)
+        assertEquals(
+            "Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens on 5 stations. Can you beat this board? " +
+                "https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2",
+            kitchen.history.single().told(),
+        )
+        val real = kitchen.history.single().copy(board = boardWith(PieceKind.BOOK_READER), model = "a model", scripted = false)
+        assertEquals(
+            "Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens of a model on 1 station. Can you beat this board? x#kitchen=dinner.b-----0k",
+            real.told("x"),
+        )
+
+        // An address that is not a link to a board opens the game as always.
+        listOf(null, "", "#", "stage=3", "kitchen", "kitchen=", "kitchen=lunch", "kitchen=brunch.l-----0k", "kitchen=lunch.nonsense").forEach { fragment ->
+            assertNull(KitchenLink.of(fragment), fragment)
+        }
     }
 
     @Test

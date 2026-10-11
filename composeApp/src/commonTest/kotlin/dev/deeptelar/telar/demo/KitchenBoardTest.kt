@@ -22,6 +22,7 @@ import dev.deeptelar.telar.demo.kitchen.READER_WITH_BOOK
 import dev.deeptelar.telar.demo.kitchen.Slip
 import dev.deeptelar.telar.demo.kitchen.Topping
 import dev.deeptelar.telar.demo.kitchen.Way
+import dev.deeptelar.telar.demo.kitchen.blueprintOf
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.graph
 import dev.deeptelar.telar.demo.kitchen.heard
@@ -29,10 +30,12 @@ import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.report
 import dev.deeptelar.telar.demo.kitchen.scriptedStations
+import dev.deeptelar.telar.demo.kitchen.text
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -334,6 +337,42 @@ class KitchenBoardTest {
             val last = orders.heard().groupBy { it.slip.order }.mapValues { (_, said) -> said.last().slip.words }
             assertEquals(orders.orders.map { it.number }.toSet(), last.keys)
             last.forEach { (order, words) -> assertEquals(Way(end.routes.getValue(order), arrives = true), board.way(words), "#$order") }
+        }
+    }
+
+    @Test
+    fun aBoardIsAShortTextThatALinkCanCarry() {
+        assertEquals("l-----0k", Blueprint.FIRST.text())
+        assertEquals("pl-b--013kk", SORTED_BOARD.text())
+        assertEquals("plxbo-413k0k2", DINNER_BOARD.text())
+        assertEquals("-------", Blueprint().text())
+
+        // Two stations of a kind are named in the order they were placed, and the text only says where they stand.
+        val twoReaders =
+            Blueprint()
+                .place(3, PieceKind.READER)
+                .place(1, PieceKind.READER)
+                .connect(RAIL, Exit.NEXT, "reader2")
+                .connect("reader2", Exit.NEXT, "reader")
+                .connect("reader", Exit.NEXT, KITCHEN)
+        assertEquals("-r-r--13k", twoReaders.text())
+        val unfinished = SORTED_BOARD.disconnect("onlyMenu", Exit.NO).disconnect(RAIL, Exit.NEXT)
+        assertEquals("pl-b---1-kk", unfinished.text())
+
+        listOf(Blueprint(), Blueprint.FIRST, SORTED_BOARD, BEST_BOARD, DINNER_BOARD, SMALL_DINNER_BOARD, twoReaders, unfinished).forEach { board ->
+            val back = assertNotNull(blueprintOf(board.text()), board.text())
+            assertEquals(board.text(), back.text())
+            assertEquals(board.summary, back.summary)
+            assertEquals(board.problems(), back.problems())
+            assertEquals(board.pieces.map { it.slot to it.kind }.toSet(), back.pieces.map { it.slot to it.kind }.toSet())
+        }
+        // Where every station of a kind stands once, the board that comes back is the same one.
+        assertEquals(DINNER_BOARD.arrows.toSet(), blueprintOf(DINNER_BOARD.text())?.arrows?.toSet())
+
+        // A text that describes no board: too short, an unknown station, an arrow to nowhere, to an empty place or to its own
+        // station, too many arrows, and a second oven twice.
+        listOf("", "l-----", "l-----0", "z-----0k", "l-----9k", "l-----1k", "l-----00", "l-----0kk", "oo----0kk", "l-----0?").forEach { text ->
+            assertNull(blueprintOf(text), text)
         }
     }
 

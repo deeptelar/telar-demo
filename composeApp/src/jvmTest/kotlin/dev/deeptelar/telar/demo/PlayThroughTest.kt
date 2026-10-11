@@ -23,6 +23,7 @@ import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
+import dev.deeptelar.telar.demo.ui.LocalCopyText
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.PizzaTheme
@@ -65,11 +66,14 @@ class PlayThroughTest {
     @Test
     fun aPlayerDrawsABetterBoardForTheKitchenRush() = runComposeUiTest {
         lateinit var game: Game
+        val copied = mutableListOf<String>()
         setContent {
             val scope = rememberCoroutineScope()
             game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 0) }
             var screen by remember { mutableStateOf<Screen>(Screen.Title) }
-            PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = { screen = it }, onSave = {}) }
+            CompositionLocalProvider(LocalCopyText provides { copied += it }) {
+                PizzaTheme(dark = true) { GameScreens(game, Settings(), screen, onNavigate = { screen = it }, onSave = {}) }
+            }
         }
 
         // The board a player finds sends every order to the menu lookup.
@@ -81,11 +85,22 @@ class PlayThroughTest {
         onNodeWithText("The same as table 2 had, but without the extra.").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Order 9 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
         onNodeWithText("minute 23: Table 5 also wants mushrooms on it.").performScrollTo().assertIsDisplayed()
+        // A board fits in a link, which opens the stage with that board drawn.
+        onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
+        assertEquals(listOf("https://deeptelar.github.io/telar-demo/#kitchen=lunch.l-----0k"), copied)
+        onNodeWithText("COPIED").performScrollTo().assertIsDisplayed()
+
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
 
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
         onNodeWithText("400 of 1100").performScrollTo().assertIsDisplayed()
+        onNodeWithText("COPY THIS RESULT AND A LINK TO ITS BOARD").performScrollTo().performClick()
+        assertEquals(
+            "Pixel Pizza, lunch rush: 400 of 1100 points for 0 tokens on 1 station. Can you beat this board? " +
+                "https://deeptelar.github.io/telar-demo/#kitchen=lunch.l-----0k",
+            copied.last(),
+        )
         onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
         onNodeWithText("1 / LUNCH RUSH / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
@@ -101,6 +116,9 @@ class PlayThroughTest {
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithContentDescription("Station bookReader").performScrollTo().performClick()
         onNodeWithContentDescription("Board: bookReader to kitchen, rail to bookReader").performScrollTo().assertIsDisplayed()
+        // The link is of the board as it is drawn now, so the button offers it again.
+        onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
+        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=lunch.b-----0k", copied.last())
 
         // The orders of the shift that is over say where they would go on the new board.
         onAllNodesWithText("on the board now: rail > book > kitchen").assertCountEquals(11)
