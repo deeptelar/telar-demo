@@ -39,6 +39,8 @@ sealed interface Screen {
 
     data class Play(val stage: Int) : Screen
 
+    data object About : Screen
+
     data object Options : Screen
 }
 
@@ -72,13 +74,25 @@ fun App() {
 @Composable
 fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Screen) -> Unit, onSave: (Settings) -> Unit) {
     if (screen == Screen.Title) {
-        TitleScreen(game, settings.modelLabel, onStart = { onNavigate(Screen.Stages) }, onOptions = { onNavigate(Screen.Options) })
+        TitleScreen(
+            game,
+            settings.modelLabel,
+            onStart = { onNavigate(Screen.Stages) },
+            onAbout = { onNavigate(Screen.About) },
+            onOptions = { onNavigate(Screen.Options) },
+        )
         return
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalCompact provides (maxWidth < 760.dp)) {
             Column(Modifier.fillMaxSize()) {
-                TopBar(game, settings.modelLabel, onTitle = { onNavigate(Screen.Title) }, onOptions = { onNavigate(Screen.Options) })
+                TopBar(
+                    game,
+                    settings.modelLabel,
+                    onTitle = { onNavigate(Screen.Title) },
+                    onAbout = { onNavigate(Screen.About) },
+                    onOptions = { onNavigate(Screen.Options) },
+                )
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.colors.line))
                 // Keyed on the screen, so each one starts scrolled to its top.
                 key(screen) {
@@ -99,9 +113,9 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                                     onStages = { onNavigate(Screen.Stages) },
                                     onNext = if (screen.stage < stages.size) ({ onNavigate(Screen.Play(screen.stage + 1)) }) else null,
                                 )
+                                Screen.About -> AboutScreen { onNavigate(Screen.Stages) }
                                 Screen.Options -> OptionsScreen(settings, game, onSave) { onNavigate(Screen.Stages) }
                             }
-                            BuiltWithTelar()
                         }
                     }
                 }
