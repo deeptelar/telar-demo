@@ -42,6 +42,31 @@ that runs.
 |---|---|
 | ![A run waiting at a save point](docs/save-point.png) | ![A failed node, with a retry from the last save](docs/game-over.png) |
 
+## Bonus stage: Kitchen rush
+
+![The kitchen in the middle of a shift: three stations, and an oven that is full](docs/kitchen.png)
+
+A pizzeria whose chefs are graphs works through one shift: twelve orders in 95 kitchen minutes,
+with orders that change and get cancelled and an oven with two places. The orders are the same
+every time. What you choose is how the kitchen is built:
+
+| Kitchen | Who does what |
+|---|---|
+| Solo chef | One agent has every tool and does everything. It is sent the whole conversation with every answer. |
+| The line | Three stations work at the same time, as nodes that run in parallel. The model only reads the orders and writes a ticket for each. Plain code makes and bakes the pizzas. |
+| The line, a model at every station | The same three stations with the model at each, asked with what it needs to know now. |
+
+The shift has two limits, the clock and a token budget, and it is measured on the orders served in
+time and on the tokens used. The shifts you played are listed side by side, so you can run the same
+orders in another kitchen or with another model and compare.
+
+Without a key the chefs are scripted and the token counts are a guess. With a real model under
+Options, the tokens are the ones the service reports, and a shift costs about 10,000 tokens on the
+line and up to 150,000 for the solo chef.
+
+The kitchen is the [kitchen sample](https://deeptelar.github.io/telar/samples.html) of Telar,
+copied into `kitchen/`. There it runs from the command line.
+
 ## Play
 
 The browser version is at <https://deeptelar.github.io/telar-demo/>. Every push to
@@ -101,12 +126,15 @@ and the Android app have no such limit.
 ## Layout
 
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
+- `kitchen/`: the bonus stage: the kitchen as plain code, the fixed shift, and the two graphs that
+  run it, `SoloChef.kt` and `Line.kt`
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
 - `storage/`: which checkpointer of the library each platform uses, and `KeyValueStore` for the
   settings and the cleared stages
-- `ui/`: the screens, the board, and `Game.kt`, which runs the graphs for them
+- `ui/`: the screens, the board, `Game.kt`, which runs the graphs of the stages for them, and
+  `KitchenController.kt`, which runs a shift of the bonus stage
 
 ## Tests
 
