@@ -73,7 +73,7 @@ data class Ticket(
 )
 
 /** What one station did in one turn, to be added to the shift. `null` stands for a station that had nothing to do. */
-private class Turn(
+internal class Turn(
     val from: Int,
     val counter: Counter,
     val usage: TokenUsage? = null,
@@ -167,10 +167,10 @@ fun line(reader: ChatModel, prep: ChatModel? = null, oven: ChatModel? = null): C
         conditionalEdge(clock, targets = setOf(bell, NodeRef.END)) { shift -> if (shift.over) NodeRef.END else bell }
     }.compile()
 
-private fun List<Topping>.words(): String = joinToString { it.word }
+internal fun List<Topping>.words(): String = joinToString { it.word }
 
 /** This shift with what a station did in [turn] done to its kitchen too. The clock of the shift stays where it is. */
-private fun LineShift.with(station: String, turn: Turn): LineShift =
+internal fun LineShift.with(station: String, turn: Turn): LineShift =
     copy(
         kitchen =
             turn.counter.done
@@ -191,7 +191,7 @@ private fun LineShift.with(reading: Reading): LineShift {
     )
 }
 
-private fun Desk.after(turn: Turn): Desk = (if (turn.asked) answered(turn.usage) else this).copy(busyUntil = turn.counter.kitchen.minute)
+internal fun Desk.after(turn: Turn): Desk = (if (turn.asked) answered(turn.usage) else this).copy(busyUntil = turn.counter.kitchen.minute)
 
 /**
  * Gives the reader the news it has not heard, and returns the tickets it wrote. Returns `null` when
@@ -227,7 +227,7 @@ private suspend fun LineShift.read(model: ChatModel): Reading? {
 }
 
 /** Lets the maker start its next piece of work. Returns `null` when the maker is busy or no order needs a pizza. */
-private suspend fun LineShift.prepTurn(model: ChatModel?): Turn? {
+internal suspend fun LineShift.prepTurn(model: ChatModel?): Turn? {
     if (prep.busyUntil > kitchen.minute || kitchen.over) return null
     val toppings = nextToMake() ?: return null
     if (model == null) return Turn(kitchen.minute, Counter(kitchen).apply { act { it.makePizza(toppings) } })
@@ -239,7 +239,7 @@ private suspend fun LineShift.prepTurn(model: ChatModel?): Turn? {
 }
 
 /** Lets the oven station start its next piece of work. Returns `null` when it is busy or can only wait. */
-private suspend fun LineShift.ovenTurn(model: ChatModel?): Turn? {
+internal suspend fun LineShift.ovenTurn(model: ChatModel?): Turn? {
     if (oven.busyUntil > kitchen.minute || kitchen.over) return null
     val move = nextAtOven() ?: return null
     if (model == null) return Turn(kitchen.minute, Counter(kitchen).apply { act(move) })
