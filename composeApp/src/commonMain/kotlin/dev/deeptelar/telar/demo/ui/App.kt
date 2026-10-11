@@ -95,7 +95,7 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                                 Screen.Stages -> StageSelectScreen(game) { onNavigate(Screen.Play(it)) }
                                 is Screen.Play -> StageScreen(
                                     game.controller(screen.stage),
-                                    settings.modelLabel,
+                                    realModel = settings.modelLabel.takeIf { settings.usesService },
                                     onStages = { onNavigate(Screen.Stages) },
                                     onNext = if (screen.stage < stages.size) ({ onNavigate(Screen.Play(screen.stage + 1)) }) else null,
                                 )

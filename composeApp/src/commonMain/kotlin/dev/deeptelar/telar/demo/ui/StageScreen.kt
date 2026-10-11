@@ -57,11 +57,11 @@ private val tutorialPages = mapOf(
 
 /** One stage: its briefing, the board, the inbox to play from, and the ticket and log of the current run. */
 @Composable
-fun StageScreen(controller: StageController, modelLabel: String, onStages: () -> Unit, onNext: (() -> Unit)?) {
+fun StageScreen(controller: StageController, realModel: String?, onStages: () -> Unit, onNext: (() -> Unit)?) {
     val stage = controller.stage
     val compact = LocalCompact.current
 
-    Briefing(stage, modelLabel, onStages)
+    Briefing(stage, realModel, onStages)
 
     Panel(
         "Board",
@@ -93,7 +93,7 @@ fun StageScreen(controller: StageController, modelLabel: String, onStages: () ->
 }
 
 @Composable
-private fun Briefing(stage: Stage, modelLabel: String, onStages: () -> Unit) {
+private fun Briefing(stage: Stage, realModel: String?, onStages: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // The links are text only, so they are moved out by their padding to line up with the page.
@@ -111,7 +111,14 @@ private fun Briefing(stage: Stage, modelLabel: String, onStages: () -> Unit) {
         Body(stage.briefing, Modifier.widthIn(max = 720.dp), color = Theme.colors.dim)
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Fact("new move", stage.moves)
-            if (stage.usesModel) Fact("model", modelLabel)
+            Fact(
+                "model",
+                when {
+                    !stage.usesModel -> "none. This stage is scripted only."
+                    realModel == null -> "scripted. Choose a real one under Options."
+                    else -> realModel
+                },
+            )
         }
     }
 }
@@ -167,9 +174,10 @@ private const val GAME_PAUSE = "desk.work()"
 
 @Composable
 private fun Fact(name: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Label(name, Modifier.width(76.dp))
-        Body(value)
+    // On the line of the value's first row, also when a narrow screen wraps the value.
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Label(name, Modifier.width(76.dp).alignByBaseline())
+        Body(value, Modifier.alignByBaseline())
     }
 }
 

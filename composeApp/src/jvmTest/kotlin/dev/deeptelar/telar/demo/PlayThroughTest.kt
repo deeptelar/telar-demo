@@ -18,6 +18,7 @@ import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
+import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.PizzaTheme
 import dev.deeptelar.telar.demo.ui.Screen
@@ -75,5 +76,32 @@ class PlayThroughTest {
         onNodeWithText("ANSWER").performClick()
         assertEquals(0, onAllNodesWithText("CODE OF ANSWER").fetchSemanticsNodes().size)
         onNodeWithText("PRESS A TILE TO SEE ITS CODE").assertIsDisplayed()
+    }
+
+    @Test
+    fun theGameSaysWhichStagesCanAskARealModel() = runComposeUiTest {
+        var screen by mutableStateOf<Screen>(Screen.Stages)
+        var settings by mutableStateOf(Settings())
+        setContent {
+            val scope = rememberCoroutineScope()
+            val game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 0) }
+            PizzaTheme(dark = true) { GameScreens(game, settings, screen, onNavigate = {}, onSave = {}) }
+        }
+
+        // The cards of stages 6 and 8 are marked, and the other six say that they are scripted.
+        assertEquals(2, onAllNodesWithText("SCRIPTED OR A MODEL", substring = true).fetchSemanticsNodes().size)
+        assertEquals(6, onAllNodesWithText("SCRIPTED ONLY", substring = true).fetchSemanticsNodes().size)
+
+        screen = Screen.Play(7)
+        onNodeWithText("none. This stage is scripted only.").assertIsDisplayed()
+
+        screen = Screen.Play(6)
+        onNodeWithText("scripted. Choose a real one under Options.").assertIsDisplayed()
+
+        // With a service chosen, the stage names its model. A stage without a model still has none.
+        settings = Settings(ModelMode.OpenAi).withKey("a key").withModel("gpt-5-mini")
+        onNodeWithText("gpt-5-mini").assertIsDisplayed()
+        screen = Screen.Play(7)
+        onNodeWithText("none. This stage is scripted only.").assertIsDisplayed()
     }
 }

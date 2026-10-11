@@ -59,7 +59,8 @@ Requires JDK 17 or newer. The Android app also needs the Android SDK with platfo
 `ANDROID_HOME`, or put `sdk.dir=/path/to/Android/Sdk` in a `local.properties` file in this
 directory. It runs on Android 7 and newer.
 
-Stages 6 and 8 ask a model. By default that is a scripted one with fixed answers. To play them
+Stages 6 and 8 ask a model, and their cards say so: "scripted or a model". The other stages are
+"scripted only". By default the model is a scripted one with fixed answers. To play the two stages
 with a real model, pick a service under Options and enter your own key for it:
 
 | Service | What you enter |
