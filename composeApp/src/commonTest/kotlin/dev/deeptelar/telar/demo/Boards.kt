@@ -39,3 +39,20 @@ val BEST_BOARD: Blueprint =
         .connect("lookup", Exit.NEXT, KITCHEN)
         .connect("bookReader", Exit.NEXT, KITCHEN)
         .connect("reader", Exit.NEXT, KITCHEN)
+
+/**
+ * This board with stations of [kinds] between the rail and the station that got every order first,
+ * on places that are free: the way a player adds an expediter or a second oven in front of everything.
+ */
+fun Blueprint.behindTheRail(vararg kinds: PieceKind): Blueprint {
+    var board = this
+    kinds.forEach { kind ->
+        val first = checkNotNull(board.target(RAIL, Exit.NEXT))
+        val slot = (0 until Blueprint.SLOTS).first { board.at(it) == null }
+        board = board.place(slot, kind).connect(kind.word, Exit.NEXT, first).connect(RAIL, Exit.NEXT, kind.word)
+    }
+    return board
+}
+
+/** The board that serves the dinner rush: both stations for the oven, and with the places that are left, one sorter. */
+val DINNER_BOARD: Blueprint = SORTED_BOARD.behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN)

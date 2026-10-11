@@ -13,6 +13,7 @@ import dev.deeptelar.telar.GraphValidationException
  * @property job what it does, for the player.
  * @property asks `true` when it asks a model, which costs tokens and a minute for each order.
  * @property sorts `true` when it sends an order one of two ways and does nothing else.
+ * @property once `true` when a board can have only one of it.
  */
 enum class PieceKind(
     val word: String,
@@ -21,6 +22,7 @@ enum class PieceKind(
     val job: String,
     val asks: Boolean = false,
     val sorts: Boolean = false,
+    val once: Boolean = false,
 ) {
     LOOKUP(
         "lookup",
@@ -56,6 +58,20 @@ enum class PieceKind(
         "Reader with the book",
         "A model reads the order together with everything the guests said before. It knows what table 2 had, and each order costs more than the last.",
         asks = true,
+    ),
+    EXPEDITER(
+        "expediter",
+        "rush",
+        "Expediter",
+        "Plain code. It writes on the ticket when the order is due. The kitchen makes and bakes those tickets first, the one that is due soonest " +
+            "before the others. Tickets without a due time are taken after them, in the order they came.",
+    ),
+    SECOND_OVEN(
+        "secondOven",
+        "oven 2",
+        "Second oven",
+        "A second oven with two places and a chef of its own. The pizza of an order that passes here may be baked in it.",
+        once = true,
     ),
     ;
 
@@ -125,7 +141,7 @@ data class Blueprint(
 
     /** This board with a new station of [kind] on [slot]. A slot that is taken, or is not on the board, stays as it is. */
     fun place(slot: Int, kind: PieceKind): Blueprint {
-        if (slot !in 0 until SLOTS || at(slot) != null) return this
+        if (slot !in 0 until SLOTS || at(slot) != null || (kind.once && pieces.any { it.kind == kind })) return this
         val id = generateSequence(1) { it + 1 }.map { if (it == 1) kind.word else "${kind.word}$it" }.first { piece(it) == null }
         return copy(pieces = pieces + Piece(id, kind, slot))
     }
@@ -208,6 +224,8 @@ data class Blueprint(
                         PieceKind.LOOKUP -> "slip -> slip.lookUp()"
                         PieceKind.READER -> "slip -> slip.read(model)"
                         PieceKind.BOOK_READER -> "slip -> slip.read(model, book = true)"
+                        PieceKind.EXPEDITER -> "slip -> slip.copy(rush = true)"
+                        PieceKind.SECOND_OVEN -> "slip -> slip.copy(secondOven = true)"
                         else -> "it"
                     }
                 "    val ${piece.id} = node(\"${piece.id}\") { $work }"
@@ -227,6 +245,9 @@ data class Blueprint(
         return (listOf("StateGraph<Slip> {") + nodes + listOf("").filter { nodes.isNotEmpty() && edges.isNotEmpty() } + edges + "}.compile()")
             .joinToString("\n")
     }
+
+    /** `true` when the kitchen of this board has a second oven. */
+    val hasSecondOven: Boolean get() = pieces.any { it.kind == PieceKind.SECOND_OVEN }
 
     /** The stations of the board in a few words, to tell one board from another. */
     val summary: String get() = if (pieces.isEmpty()) "no station" else ordered().joinToString(" + ") { it.kind.tile }

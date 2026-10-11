@@ -102,11 +102,13 @@ private val SMOKE_PUFFS =
  * fills: six parts until it is baked, and six more, in red, until it is burnt.
  *
  * @param lit `true` while the shift runs, which is when the fire moves.
+ * @param oven which oven of the kitchen this is: 0 for the first.
  */
 @Composable
-fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier) {
+fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, oven: Int = 0) {
     val seen = remember { arrayOfNulls<String>(Kitchen.OVEN_SLOTS) }
-    val places = ovenPlaces(seen.toList(), kitchen.oven.map { it.name })
+    val places = ovenPlaces(seen.toList(), kitchen.oven.filter { it.oven == oven }.map { it.name })
+    val called = if (oven == 0) "Oven" else "Oven ${oven + 1}"
     places.forEachIndexed { index, name -> seen[index] = name }
 
     val time by rememberInfiniteTransition().animateFloat(0f, FLAMES.size.toFloat(), infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Restart))
@@ -118,7 +120,7 @@ fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier) {
             val minutes = pizza?.let { kitchen.minute - it.inOvenSince!! }
             Column(
                 Modifier.weight(1f).semantics(mergeDescendants = true) {
-                    contentDescription = "Oven place ${index + 1}: " + if (pizza == null) "empty" else "${pizza.name}, ${bakeText(minutes!!)}"
+                    contentDescription = "$called place ${index + 1}: " + if (pizza == null) "empty" else "${pizza.name}, ${bakeText(minutes!!)}"
                 },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

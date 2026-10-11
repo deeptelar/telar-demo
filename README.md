@@ -46,10 +46,14 @@ that runs.
 
 ![The board with two sorters, in the middle of a shift](docs/kitchen.png)
 
-A puzzle. A pizzeria works through one shift: twelve orders in 95 kitchen minutes. Guests change
-their mind, one table has an allergy, and one order only makes sense if you know what another
-table had. The kitchen makes exactly what a ticket says, and you draw how an order becomes a
-ticket: stations on a board, and arrows between them.
+A puzzle. A pizzeria works through a shift of twelve orders, and the kitchen makes exactly what a
+ticket says. You draw how an order becomes a ticket and reaches the oven: stations on a board
+with six places, and arrows between them. There are two shifts:
+
+- **Lunch rush** is about reading. Guests change their mind, one table has an allergy, and one
+  order only makes sense if you know what another table had.
+- **Dinner rush** is about the oven. The orders come in two waves and are not due in the order
+  they come, and one oven that takes the tickets as they arrive is too slow.
 
 | Station | What it does | What it costs |
 |---|---|---|
@@ -58,6 +62,8 @@ ticket: stations on a board, and arrows between them.
 | Sorter: about something earlier? | Plain code. Yes when the order names a table, or says "same", "another" or "again". | Nothing |
 | Reader | A model reads the order, and only the order. | Tokens, and a minute for each order |
 | Reader with the book | A model reads the order with everything the guests said before. | More tokens with every order |
+| Expediter | Plain code. Writes on the ticket when the order is due, and the kitchen takes those tickets first, the one that is due soonest before the others. | A place on the board |
+| Second oven | Two more places and a chef of its own, for the pizzas of the orders that pass it. | A place on the board |
 
 The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
 arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
@@ -66,10 +72,14 @@ what the game does not check itself is reported by Telar when the graph is compi
 
 The board you start with sends every order to the menu lookup. It costs no tokens and gets most
 orders wrong. After a shift every order shows the way it took and the ticket it got, so you can see
-which station failed it. While the shift runs, the oven shows its two places in pixels: a fire under
-each pizza, and a bar that fills until the pizza is baked, and then until it is burnt. There are three goals: serve every order right and on time, then do it
-for fewer than 5,000 tokens, then for fewer than 4,000. The orders are the same every time, and the
-shifts you played are listed side by side.
+which station failed it. While the shift runs, the oven shows its places in pixels: a fire under
+each pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
+
+Each shift has goals: serve every order right and on time, and then do it for fewer tokens. In the
+dinner rush the six places are the puzzle. Every order on time needs the expediter and the second
+oven, and what is left of the board has to read six orders that come in at once, where a model
+takes a minute for each. The orders of a shift are the same every time, and the shifts you played
+are listed side by side.
 
 Without a key the readers are scripted: the one with the book is always right, and the one without
 it cannot know what it was not told. Their token counts are a guess from the length of the text,
@@ -140,8 +150,8 @@ and the Android app have no such limit.
 
 - `game/`: the ticket (the state), the graphs of the stages, the tools of the agent
 - `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
-  `Blueprint.kt` is the board a player draws, and `BoardShift.kt` turns it into the graph that
-  runs a shift
+  `Blueprint.kt` is the board a player draws, `BoardShift.kt` turns it into the graph that runs a
+  shift, and `DinnerRush.kt` is the second shift
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`

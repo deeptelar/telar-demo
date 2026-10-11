@@ -62,6 +62,7 @@ fun App() {
     var screen by remember { mutableStateOf<Screen>(Screen.Title) }
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
     val drawn = remember { mutableStateOf(Blueprint.FIRST) }
+    val chosen = remember { mutableStateOf(Rush.Lunch) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {
@@ -69,7 +70,7 @@ fun App() {
         // New settings mean a new model, and with it fresh graphs. Cleared stages and saved runs are kept.
         val model = remember(settings) { settings.chatModel(httpClient) }
         val game = remember(model) {
-            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played, drawn = drawn)
+            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played, drawn = drawn, chosen = chosen)
         }
         GameScreens(game, settings, screen, onNavigate = { screen = it }) { updated ->
             loaded = updated

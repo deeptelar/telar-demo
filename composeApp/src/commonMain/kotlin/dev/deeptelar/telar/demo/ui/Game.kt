@@ -318,6 +318,7 @@ class StageController(
  * @param modelLabel what [realModel] is called.
  * @param played the shifts of the bonus stage that ran to their end.
  * @param drawn the board of the bonus stage.
+ * @param chosen the shift of the bonus stage that the player chose.
  */
 class Game(
     model: ChatModel,
@@ -329,6 +330,7 @@ class Game(
     modelLabel: String = "scripted",
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
     drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
+    chosen: MutableState<Rush> = mutableStateOf(Rush.Lunch),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
@@ -344,6 +346,7 @@ class Game(
             stepMillis = if (workMillis == 0L || realModel != null) 0 else 160,
             played = played,
             drawn = drawn,
+            chosen = chosen,
         )
 
     val controllers: List<StageController> = stages.map { StageController(it, Desk(model, workMillis), saves, scope, ::markCleared) }

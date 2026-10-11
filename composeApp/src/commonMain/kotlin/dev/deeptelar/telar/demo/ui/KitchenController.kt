@@ -12,10 +12,12 @@ import dev.deeptelar.telar.demo.kitchen.BOARD_STEPS
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Kitchen
 import dev.deeptelar.telar.demo.kitchen.Outcome
 import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
+import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.scriptedStations
@@ -28,10 +30,11 @@ import kotlinx.coroutines.launch
 /**
  * A shift that was played to its end, to compare with the next one.
  *
+ * @property rush the orders it had.
  * @property board the board it was played on.
  * @property scripted `true` when no model was asked, so that its tokens are a guess.
  */
-data class PlayedShift(val board: Blueprint, val model: String, val scripted: Boolean, val shift: Service)
+data class PlayedShift(val rush: Rush, val board: Blueprint, val model: String, val scripted: Boolean, val shift: Service)
 
 /**
  * Something to reach in the bonus stage.
@@ -45,13 +48,36 @@ class Goal(val text: String, val countsTokens: Boolean, private val reached: (Se
 
 private fun Service.everyOrderOnTime(): Boolean = kitchen.score().let { it.points == it.orders * Score.ON_TIME_POINTS } && kitchen.standing.none { it.outcome == Outcome.OPEN }
 
-/** The goals, the easiest first. The second needs a sorter, and the third needs two. */
-val KITCHEN_GOALS: List<Goal> =
-    listOf(
-        Goal("Serve every order right and on time.", countsTokens = false) { it.everyOrderOnTime() },
-        Goal("Do it for fewer than 5,000 tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < 5_000 },
-        Goal("Do it for fewer than 4,000 tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < 4_000 },
-    )
+private fun everyOrder() = Goal("Serve every order right and on time.", countsTokens = false) { it.everyOrderOnTime() }
+
+private fun forFewerThan(tokens: Int, said: String) =
+    Goal("Do it for fewer than $said tokens.", countsTokens = true) { it.everyOrderOnTime() && it.spent < tokens }
+
+/**
+ * The orders of a shift, which are the same every time it is played.
+ *
+ * @property orders the kitchen at the start of the shift.
+ * @property goals what there is to reach in it, the easiest first.
+ */
+enum class Rush(val title: String, val detail: String, val orders: () -> Kitchen, val goals: List<Goal>) {
+    /** About reading. Its second goal needs a sorter, and its third needs two. */
+    Lunch(
+        "Lunch rush",
+        "Twelve orders in 95 minutes. It is about reading: guests change their mind, one table has an allergy, and one order only makes " +
+            "sense if you know what another table had.",
+        ::lunchRush,
+        listOf(everyOrder(), forFewerThan(5_000, "5,000"), forFewerThan(4_000, "4,000")),
+    ),
+
+    /** About the oven. Every order on time needs the expediter, the second oven, and readers that work side by side. */
+    Dinner(
+        "Dinner rush",
+        "Twelve orders in 75 minutes, most of them in two waves, and not due in the order they come. It is about the oven: one oven that " +
+            "takes the tickets as they come is too slow, and the board has only six places.",
+        ::dinnerRush,
+        listOf(everyOrder(), forFewerThan(4_000, "4,000")),
+    ),
+}
 
 /**
  * The bonus stage: holds the board the player draws, runs a shift on it, and exposes both as Compose state.
@@ -64,6 +90,7 @@ val KITCHEN_GOALS: List<Goal> =
  * @param stepMillis how long an order is shown at each station of the board it goes through.
  * @param played where the shifts that ran to their end are kept.
  * @param drawn where the board is kept.
+ * @param chosen where the shift the player chose is kept.
  */
 class KitchenController(
     private val realModel: ChatModel?,
@@ -73,8 +100,17 @@ class KitchenController(
     private val stepMillis: Long = 0,
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
     drawn: MutableState<Blueprint> = mutableStateOf(Blueprint.FIRST),
+    chosen: MutableState<Rush> = mutableStateOf(Rush.Lunch),
 ) {
     val scripted: Boolean = realModel == null
+
+    /** The shift the next start plays. */
+    var rush: Rush by chosen
+        private set
+
+    /** The orders of [shift], which stay when the player chooses the other shift for the next one. */
+    var playingRush: Rush by mutableStateOf(rush)
+        private set
 
     /** The board as the player has drawn it. It comes from outside, like [history]. */
     var board: Blueprint by drawn
@@ -135,8 +171,13 @@ class KitchenController(
 
     private var job: Job? = null
 
-    /** The goals with whether a shift of this session reached each. */
-    val goals: List<Pair<Goal, Boolean>> get() = KITCHEN_GOALS.map { goal -> goal to history.any(goal::metBy) }
+    /** The goals of the chosen shift, with whether a shift of this session reached each. */
+    val goals: List<Pair<Goal, Boolean>> get() = rush.goals.map { goal -> goal to history.any { it.rush == rush && goal.metBy(it) } }
+
+    /** Chooses the orders of the next shift. */
+    fun choose(rush: Rush) {
+        if (!running) this.rush = rush
+    }
 
     /** The player pressed an empty place: the stations to choose from are offered for it. */
     fun tapSlot(slot: Int) {
@@ -217,14 +258,16 @@ class KitchenController(
     fun start() {
         if (running || problems.isNotEmpty()) return
         val drawn = board
+        val orders = rush
         select(null)
         running = true
         finished = false
         error = null
         playing = drawn
+        playingRush = orders
         job = scope.launch {
             try {
-                val begin = BoardShift(lunchRush(), budget)
+                val begin = BoardShift(orders.orders(), budget)
                 shift = begin
                 val models = realModel?.let { model -> { _: PieceKind -> model } } ?: scriptedStations(begin.kitchen)
                 drawn.kitchen(models).stream(begin, GraphConfig(maxIterations = BOARD_STEPS)).collect { show(it) }
@@ -237,7 +280,7 @@ class KitchenController(
                 running = false
                 at = null
                 reading = null
-                if (finished) shift?.let { history = history + PlayedShift(drawn, modelLabel, scripted, it) }
+                if (finished) shift?.let { history = history + PlayedShift(orders, drawn, modelLabel, scripted, it) }
             }
         }
     }

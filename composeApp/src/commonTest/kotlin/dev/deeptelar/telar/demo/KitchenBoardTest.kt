@@ -15,11 +15,13 @@ import dev.deeptelar.telar.demo.kitchen.Blueprint.Companion.RAIL
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.kitchen.MENU
+import dev.deeptelar.telar.demo.kitchen.Outcome
 import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.READER_ALONE
 import dev.deeptelar.telar.demo.kitchen.READER_WITH_BOOK
 import dev.deeptelar.telar.demo.kitchen.Slip
 import dev.deeptelar.telar.demo.kitchen.Topping
+import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.graph
 import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lunchRush
@@ -302,5 +304,98 @@ class KitchenBoardTest {
         assertTrue(PieceKind.ONLY_MENU.says(" veggie "))
         assertFalse(PieceKind.ONLY_MENU.says("A veggie, please."))
         assertFalse(PieceKind.READER.says("A veggie."))
+    }
+
+    private suspend fun dinner(board: Blueprint): BoardShift =
+        board.kitchen(scriptedStations(dinnerRush())).invoke(BoardShift(dinnerRush()), config).state
+
+    private fun BoardShift.late(): List<Int> = kitchen.standing.filter { it.outcome == Outcome.LATE }.map { it.number }
+
+    @Test
+    fun oneOvenThatTakesTheTicketsAsTheyComeIsTooSlowForTheDinnerRush() = runTest {
+        val end = dinner(SORTED_BOARD)
+
+        // Every ticket is right. The pizzas are late.
+        assertEquals(950, end.kitchen.score().points)
+        assertEquals(listOf(4, 5, 8, 11, 12), end.late())
+        assertEquals(0, end.kitchen.score().wrong + end.kitchen.score().allergy + end.kitchen.score().missed)
+        // Without an expediter a ticket has its turn when it comes: the lookup is done first, so the veggie of table 1 is made before the pizzas that are due sooner.
+        assertEquals("P1 is on the counter: tomato, mozzarella, mushrooms, peppers, onions.", end.log.first { it.station == "prep" }.text)
+        assertEquals(setOf("bookReader", "prep", "oven"), end.desks.keys)
+    }
+
+    @Test
+    fun theExpediterAndTheSecondOvenEachHelpAndTheDinnerRushNeedsBoth() = runTest {
+        val rushed = dinner(SORTED_BOARD.behindTheRail(PieceKind.EXPEDITER))
+        val twoOvens = dinner(SORTED_BOARD.behindTheRail(PieceKind.SECOND_OVEN))
+        val both = dinner(DINNER_BOARD)
+
+        assertEquals(listOf(1000, 1100, 1200), listOf(rushed, twoOvens, both).map { it.kitchen.score().points })
+        assertEquals(emptyList(), both.late())
+        assertEquals(54, both.kitchen.minute)
+        // The stations for the oven cost no tokens: the three boards read the orders the same way.
+        assertEquals(setOf(3_564), setOf(rushed.spent, twoOvens.spent, both.spent))
+
+        // With the due time on the tickets the kitchen starts with the pizza that is due first.
+        assertEquals("P1 is on the counter: tomato, mozzarella, basil.", rushed.log.first { it.station == "prep" }.text)
+        // The second oven has a chef of its own, who works in the same minutes as the first.
+        val baked = both.log.filter { "is in the oven" in it.text }
+        assertEquals(setOf("oven", "oven 2"), baked.map { it.station }.toSet())
+        assertTrue(both.kitchen.pizzas.count { it.oven == 1 } >= 4)
+        assertTrue(rushed.kitchen.pizzas.all { it.oven == 0 })
+        assertEquals(setOf("bookReader", "prep", "oven", "oven 2"), both.desks.keys)
+        assertEquals(listOf("secondOven", "expediter", "onlyMenu", "lookup"), both.routes[2])
+    }
+
+    @Test
+    fun aReaderThatReadsEveryOrderAloneIsTooSlowForSixOrdersAtOnce() = runTest {
+        val end = dinner(boardWith(PieceKind.BOOK_READER).behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN))
+
+        // Six orders come in at minute 30, and the last ticket is written at minute 36.
+        assertEquals(1100, end.kitchen.score().points)
+        assertEquals(listOf(11, 12), end.late())
+    }
+
+    @Test
+    fun onlyThePizzasOfOrdersThatPassedTheSecondOvenAreBakedInIt() = runTest {
+        // The orders that are only a menu pizza pass the second oven, and the others do not.
+        val board =
+            SORTED_BOARD
+                .place(2, PieceKind.SECOND_OVEN)
+                .connect("lookup", Exit.NEXT, "secondOven")
+                .connect("secondOven", Exit.NEXT, KITCHEN)
+
+        val end = dinner(board)
+
+        // Table 1 ordered a veggie and nothing else. What it said afterwards went the other way, and the order keeps its stamp.
+        assertEquals(setOf(1, 2, 4, 9, 10), end.secondOven)
+        val inSecond = end.log.filter { it.station == "oven 2" && "was served" in it.text }.map { it.text.substringAfter("order #").substringBefore(".").toInt() }
+        assertTrue(inSecond.isNotEmpty() && inSecond.all { it in end.secondOven }, "$inSecond")
+    }
+
+    @Test
+    fun aBoardHasOneSecondOvenAndItsCodeShowsTheStationsForTheOven() {
+        val board = Blueprint.FIRST.behindTheRail(PieceKind.EXPEDITER, PieceKind.SECOND_OVEN)
+
+        assertEquals(board, board.place(5, PieceKind.SECOND_OVEN))
+        assertEquals(listOf("expediter", "expediter2"), Blueprint().place(0, PieceKind.EXPEDITER).place(1, PieceKind.EXPEDITER).pieces.map { it.id })
+        assertTrue(board.hasSecondOven)
+        assertFalse(Blueprint.FIRST.hasSecondOven)
+        assertEquals(
+            """
+            StateGraph<Slip> {
+                val secondOven = node("secondOven") { slip -> slip.copy(secondOven = true) }
+                val expediter = node("expediter") { slip -> slip.copy(rush = true) }
+                val lookup = node("lookup") { slip -> slip.lookUp() }
+
+                START then secondOven
+                secondOven then expediter
+                expediter then lookup
+                lookup then END
+            }.compile()
+            """.trimIndent(),
+            board.code(),
+        )
+        assertEquals("oven 2 + rush + lookup", board.summary)
     }
 }

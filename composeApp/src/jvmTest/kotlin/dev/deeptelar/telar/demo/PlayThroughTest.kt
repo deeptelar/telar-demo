@@ -25,6 +25,7 @@ import dev.deeptelar.telar.demo.ui.GameScreens
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.PizzaTheme
+import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.Screen
 import dev.deeptelar.telar.demo.ui.Settings
 import dev.deeptelar.telar.demo.ui.TELAR_LINK
@@ -80,7 +81,7 @@ class PlayThroughTest {
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
         onNodeWithText("400 of 1100").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
-        onNodeWithText("1 / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1 / LUNCH RUSH / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
 
         // The lookup goes, and a reader that is told everything takes its place.
@@ -101,12 +102,27 @@ class PlayThroughTest {
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
         onNodeWithText("1100 of 1100").performScrollTo().assertIsDisplayed()
-        onNodeWithText("2 / BOOK / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("2 / LUNCH RUSH / BOOK / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
 
         // The board of an earlier shift can be taken up again.
         onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
         assertEquals("lookup", game.kitchen.board.summary)
+
+        // The other shift has other orders and goals of its own.
+        onNodeWithText("DINNER RUSH").performScrollTo().performClick()
+        assertEquals(Rush.Dinner, game.kitchen.rush)
+        onNodeWithText("GOALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Place 2").performScrollTo().performClick()
+        onNodeWithText("SECOND OVEN").performScrollTo().performClick()
+        onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithText("CHANGE").performScrollTo().performClick()
+        onNodeWithContentDescription("Station secondOven").performScrollTo().performClick()
+        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 3 }
+        onNodeWithContentDescription("Oven 2 place 1: empty").performScrollTo().assertIsDisplayed()
+        onNodeWithText("3 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
 
         // The stage select screen leads here too.
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()

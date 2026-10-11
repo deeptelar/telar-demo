@@ -19,9 +19,9 @@ import dev.deeptelar.telar.demo.kitchen.scriptedReader
 import dev.deeptelar.telar.demo.kitchen.shift
 import dev.deeptelar.telar.demo.kitchen.soloChef
 import dev.deeptelar.telar.demo.ui.Bake
-import dev.deeptelar.telar.demo.ui.KITCHEN_GOALS
 import dev.deeptelar.telar.demo.ui.KitchenController
 import dev.deeptelar.telar.demo.ui.PlayedShift
+import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.bake
 import dev.deeptelar.telar.demo.ui.bakeText
 import dev.deeptelar.telar.demo.ui.ovenPlaces
@@ -217,8 +217,44 @@ class KitchenRushTest {
         assertEquals(6, kitchen.history.size)
 
         // The tokens of a real model are its own, so only the scripted chefs are held to the token goals.
-        val real = PlayedShift(BEST_BOARD, "a model", scripted = false, kitchen.history[4].shift)
-        assertEquals(listOf(true, false, false), KITCHEN_GOALS.map { it.metBy(real) })
+        val real = PlayedShift(Rush.Lunch, BEST_BOARD, "a model", scripted = false, kitchen.history[4].shift)
+        assertEquals(listOf(true, false, false), Rush.Lunch.goals.map { it.metBy(real) })
+    }
+
+    @Test
+    fun theDinnerRushIsAnotherShiftWithGoalsOfItsOwn() = runTest {
+        val kitchen = kitchen()
+        assertEquals(Rush.Lunch, kitchen.rush)
+        kitchen.load(BEST_BOARD)
+        kitchen.start()
+        advanceUntilIdle()
+        assertEquals(listOf(true, true, true), kitchen.goals.map { it.second })
+
+        // What the lunch rush reached does not count for the dinner rush.
+        kitchen.choose(Rush.Dinner)
+        assertEquals(listOf(false, false), kitchen.goals.map { it.second })
+        assertEquals(Rush.Lunch, kitchen.playingRush)
+
+        kitchen.start()
+        advanceTimeBy(1_000)
+        // The orders cannot be changed in the middle of a shift.
+        kitchen.choose(Rush.Lunch)
+        assertEquals(Rush.Dinner, kitchen.rush)
+        advanceUntilIdle()
+        // The board that reads the lunch rush for the fewest tokens has no place left for the second station of the oven.
+        assertEquals(950, kitchen.shift!!.kitchen.score().points)
+        assertEquals(1200, kitchen.shift!!.kitchen.score().orders * 100)
+        assertEquals(listOf(false, false), kitchen.goals.map { it.second })
+
+        kitchen.load(DINNER_BOARD)
+        kitchen.start()
+        advanceUntilIdle()
+        assertEquals(1200, kitchen.shift!!.kitchen.score().points)
+        assertEquals(listOf(true, true), kitchen.goals.map { it.second })
+        assertEquals(listOf(Rush.Lunch, Rush.Dinner, Rush.Dinner), kitchen.history.map { it.rush })
+
+        kitchen.choose(Rush.Lunch)
+        assertEquals(listOf(true, true, true), kitchen.goals.map { it.second })
     }
 
     @Test
@@ -301,14 +337,17 @@ class KitchenRushTest {
     fun theShiftsAndTheBoardOutliveTheController() = runTest {
         val played = mutableStateOf(emptyList<PlayedShift>())
         val drawn = mutableStateOf(Blueprint.FIRST)
-        val first = KitchenController(null, "scripted", this, minuteMillis = 0, played = played, drawn = drawn)
+        val chosen = mutableStateOf(Rush.Lunch)
+        val first = KitchenController(null, "scripted", this, minuteMillis = 0, played = played, drawn = drawn, chosen = chosen)
 
         first.load(SORTED_BOARD)
+        first.choose(Rush.Dinner)
         first.start()
         advanceUntilIdle()
         // The player chose another model under Options, which makes a new controller.
-        val second = KitchenController(null, "another", this, minuteMillis = 0, played = played, drawn = drawn)
+        val second = KitchenController(null, "another", this, minuteMillis = 0, played = played, drawn = drawn, chosen = chosen)
         assertEquals(SORTED_BOARD, second.board)
+        assertEquals(Rush.Dinner, second.rush)
         second.start()
         advanceUntilIdle()
 

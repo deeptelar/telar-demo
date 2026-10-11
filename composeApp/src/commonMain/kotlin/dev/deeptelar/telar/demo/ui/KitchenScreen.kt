@@ -40,7 +40,6 @@ import dev.deeptelar.telar.demo.kitchen.Pizza
 import dev.deeptelar.telar.demo.kitchen.Place
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
-import dev.deeptelar.telar.demo.kitchen.lunchRush
 import dev.deeptelar.telar.demo.kitchen.report
 
 /**
@@ -55,12 +54,11 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         PillButton("< All stages", onStages, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
-        Label("bonus stage / one shift, twelve orders", color = Theme.colors.red)
+        Label("bonus stage / two shifts, twelve orders each", color = Theme.colors.red)
         DotMatrix("Kitchen rush", pitch = if (compact) 3.dp else 5.dp)
         Body(
-            "Twelve orders come in before the kitchen closes at minute $CLOSES_AT. Guests change their mind, one table has an allergy, and " +
-                "one order only makes sense if you know what another table had. The kitchen makes exactly what the ticket says. " +
-                "You draw how an order becomes a ticket: every order is one run of the graph on your board.",
+            "Orders come in until the kitchen closes, and the kitchen makes exactly what the ticket says. You draw how an order becomes " +
+                "a ticket and reaches the oven: stations, and arrows between them. Every order is one run of the graph on your board.",
             Modifier.widthIn(max = 720.dp),
             color = Theme.colors.dim,
         )
@@ -85,14 +83,14 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
     }
 }
 
-private val CLOSES_AT = lunchRush().closesAt
-
 /** Where the player draws the board and starts the shift. */
 @Composable
 private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     var showCode by remember { mutableStateOf(false) }
     Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
+        Rush.entries.forEach { rush -> Choice(controller.rush == rush, rush.title, rush.detail, onClick = { controller.choose(rush) }) }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
         KitchenBoard(controller, Modifier.fillMaxWidth())
         Hand(controller)
         controller.problems.forEach { problem -> Body(problem, color = colors.red) }
@@ -148,7 +146,10 @@ private fun Hand(controller: KitchenController) {
         controller.running -> Body("The board cannot be changed while a shift runs.", color = colors.dim)
         picking != null -> {
             Label("a station for place ${picking + 1}", color = colors.ink)
-            PieceKind.entries.forEach { kind -> Choice(false, kind.title, kind.job, onClick = { controller.put(kind) }, role = Role.Button) }
+            // A station that a board can have only once is not offered again.
+            PieceKind.entries.filterNot { kind -> kind.once && board.pieces.any { it.kind == kind } }.forEach { kind ->
+                Choice(false, kind.title, kind.job, onClick = { controller.put(kind) }, role = Role.Button)
+            }
         }
         selected != null -> {
             Label(board.title(selected), color = colors.ink)
@@ -178,7 +179,7 @@ private fun Hand(controller: KitchenController) {
 private fun Goals(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     val goals = controller.goals
-    Panel("Goals", modifier, trailing = { Label("${goals.count { it.second }} of ${goals.size}") }) {
+    Panel("Goals / ${controller.rush.title}", modifier, trailing = { Label("${goals.count { it.second }} of ${goals.size}") }) {
         goals.forEach { (goal, met) ->
             Row(
                 Modifier.semantics(mergeDescendants = true) { contentDescription = "${goal.text} ${if (met) "Reached" else "Open"}" },
@@ -215,7 +216,7 @@ private fun ShiftPanels(controller: KitchenController, shift: BoardShift) {
     if (controller.finished) Result(controller, shift)
     Meters(controller, shift)
     Stations(controller, shift)
-    Floor(shift.kitchen, controller.running)
+    Floor(shift.kitchen, controller.running, ovens = if (controller.playing.hasSecondOven) 2 else 1)
     Log(shift)
     Rail(controller, shift)
 }
@@ -269,12 +270,13 @@ private fun Stations(controller: KitchenController, shift: BoardShift) {
         if (asking.isEmpty()) Spec("board", "No station of this board asks a model.", colors.dim)
         Spec("prep", "makes what the tickets say. Plain code, no tokens.", colors.dim)
         Spec("oven", "bakes and serves. Plain code, no tokens.", colors.dim)
+        if (controller.playing.hasSecondOven) Spec("oven 2", "bakes and serves the pizzas that may go into it. Plain code, no tokens.", colors.dim)
     }
 }
 
 /** The pizzas that are in the kitchen: raw on the counter, in the oven with its fire, and baked on the pass. */
 @Composable
-private fun Floor(kitchen: Kitchen, running: Boolean) {
+private fun Floor(kitchen: Kitchen, running: Boolean, ovens: Int) {
     val colors = Theme.colors
     val counter = kitchen.made.filter { it.place == Place.COUNTER }
     val pass = kitchen.made.filter { it.place == Place.PASS }
@@ -282,8 +284,11 @@ private fun Floor(kitchen: Kitchen, running: Boolean) {
         Area("counter", if (counter.isEmpty()) "nothing" else "${counter.size} raw") {
             counter.forEach { PizzaRow(it, "raw", colors.dim) }
         }
-        Area("oven", "${kitchen.oven.size} of ${Kitchen.OVEN_SLOTS} places") {
-            PixelOven(kitchen, lit = running, Modifier.fillMaxWidth().padding(start = 88.dp, top = 4.dp))
+        Area(if (ovens == 1) "oven" else "ovens", "${kitchen.oven.size} of ${ovens * Kitchen.OVEN_SLOTS} places") {
+            repeat(ovens) { oven ->
+                if (ovens > 1) Label("oven ${oven + 1}", Modifier.padding(start = 88.dp, top = 4.dp), color = colors.ink)
+                PixelOven(kitchen, lit = running, Modifier.fillMaxWidth().padding(start = 88.dp, top = 4.dp), oven)
+            }
             Label("baked after ${Kitchen.BAKED_AFTER} minutes, burnt after ${Kitchen.BURNT_AFTER}", Modifier.padding(start = 88.dp, bottom = 4.dp))
         }
         Area("pass", if (pass.isEmpty()) "nothing" else "${pass.size} out of the oven") {
@@ -383,11 +388,12 @@ private const val LOG_LINES = 8
 /** How the shift went, in the lines that one shift is compared with another on. */
 @Composable
 private fun Result(controller: KitchenController, shift: BoardShift) {
-    val played = PlayedShift(controller.playing, controller.modelLabel, controller.scripted, shift)
-    Panel("Shift over / ${controller.playing.summary}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
+    val rush = controller.playingRush
+    val played = PlayedShift(rush, controller.playing, controller.modelLabel, controller.scripted, shift)
+    Panel("Shift over / ${rush.title} / ${controller.playing.summary}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
         // What each station cost is in the panel of the stations.
         shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
-        Spec("goals", "${KITCHEN_GOALS.count { it.metBy(played) }} of ${KITCHEN_GOALS.size} reached on this board")
+        Spec("goals", "${rush.goals.count { it.metBy(played) }} of ${rush.goals.size} reached on this board")
     }
 }
 
@@ -400,7 +406,7 @@ private fun Shifts(controller: KitchenController, modifier: Modifier = Modifier)
         controller.history.forEachIndexed { index, played ->
             val score = played.shift.kitchen.score()
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Label("${index + 1} / ${played.board.summary} / ${played.model}", color = colors.ink)
+                Label("${index + 1} / ${played.rush.title} / ${played.board.summary} / ${played.model}", color = colors.ink)
                 Body(
                     "${score.points} points, ${played.shift.spent.grouped()} tokens, minute ${played.shift.kitchen.minute}",
                     color = colors.dim,

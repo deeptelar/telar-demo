@@ -18,6 +18,7 @@ import dev.deeptelar.telar.demo.ui.Game
 import dev.deeptelar.telar.demo.ui.GameScreens
 import dev.deeptelar.telar.demo.ui.ModelMode
 import dev.deeptelar.telar.demo.ui.PizzaTheme
+import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.Screen
 import dev.deeptelar.telar.demo.ui.Settings
 import java.io.File
@@ -141,7 +142,16 @@ class ScreenshotTest {
         shoot("kitchen-running", Screen.Kitchen, height = 2000)
         scope.advanceUntilIdle()
         shoot("kitchen-over", Screen.Kitchen, height = 2300)
-        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 5200)
+        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 5600)
+
+        // The dinner rush, with both ovens at work in the second wave.
+        game.kitchen.choose(Rush.Dinner)
+        game.kitchen.load(DINNER_BOARD)
+        game.kitchen.start()
+        scope.advanceTimeBy(21_500)
+        shoot("kitchen-dinner", Screen.Kitchen, height = 2300)
+        scope.advanceUntilIdle()
+        shoot("kitchen-dinner-over", Screen.Kitchen, height = 2300)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */

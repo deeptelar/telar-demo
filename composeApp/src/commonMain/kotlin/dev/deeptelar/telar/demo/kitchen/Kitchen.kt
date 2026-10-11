@@ -82,6 +82,7 @@ enum class Place { COUNTER, OVEN, PASS, SERVED }
  * @property madeAt the minute it was ready on the counter. Nobody can touch it before.
  * @property inOvenSince the minute it went into the oven, while it is there.
  * @property baked the minutes it spent in the oven, once it is out.
+ * @property oven the oven it is in or was baked in: 0 for the first. The kitchen of the game can have a second one.
  */
 data class Pizza(
     val name: String,
@@ -90,6 +91,7 @@ data class Pizza(
     val place: Place = Place.COUNTER,
     val inOvenSince: Int? = null,
     val baked: Int? = null,
+    val oven: Int = 0,
 ) {
     /** `true` when the pizza came out of the oven neither raw nor burnt. */
     val good: Boolean get() = baked != null && baked in Kitchen.BAKED_AFTER..Kitchen.BURNT_AFTER
@@ -224,7 +226,7 @@ data class Kitchen(
         )
     }
 
-    fun bake(name: String): Acted {
+    fun bake(name: String, oven: Int = 0): Acted {
         open()
         val pizza = pizza(name)
         if (pizza.place !=
@@ -232,10 +234,11 @@ data class Kitchen(
         ) {
             fail("${pizza.name} is not on the counter. Only a pizza that was never baked can go into the oven.")
         }
-        if (oven.size == OVEN_SLOTS) fail("The oven is full: ${oven.joinToString { it.name }}.")
+        val inIt = this.oven.filter { it.oven == oven }
+        if (inIt.size == OVEN_SLOTS) fail("The oven is full: ${inIt.joinToString { it.name }}.")
         val later = after(MOVE_MINUTES)
         return Acted(
-            later.with(pizza.copy(place = Place.OVEN, inOvenSince = later.minute)),
+            later.with(pizza.copy(place = Place.OVEN, inOvenSince = later.minute, oven = oven)),
             "${pizza.name} is in the oven. It is baked from minute ${later.minute + BAKED_AFTER} and burnt after minute ${later.minute + BURNT_AFTER}.",
         )
     }

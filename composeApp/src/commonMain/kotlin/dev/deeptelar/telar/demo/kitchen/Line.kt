@@ -24,6 +24,9 @@ import kotlinx.serialization.Serializable
  * needs.
  * @property heardUntil the minute up to which the reader has been given the news.
  * @property log what happened, one entry for each thing a station did.
+ * @property turnOf when the kitchen gets to each ticket: the ticket with the lowest number is made
+ * and baked first. An order that has none is taken by the minute it is due, which is how the line
+ * works. The board of the game writes the turns.
  */
 data class LineShift(
     override val kitchen: Kitchen,
@@ -35,12 +38,13 @@ data class LineShift(
     val prep: Desk = Desk(),
     val oven: Desk = Desk(),
     override val log: List<Event> = emptyList(),
+    val turnOf: Map<Int, Int> = emptyMap(),
 ) : Service {
     override val desks: Map<String, Desk> get() = mapOf("reader" to reader, "prep" to prep, "oven" to oven)
 
-    /** The open orders that have a ticket, the most urgent first, each with the pizza that is made for it, if any. */
+    /** The open orders that have a ticket, the one whose turn it is first, each with the pizza that is made for it, if any. */
     fun plan(): List<Pair<Order, Pizza?>> =
-        kitchen.assign(kitchen.rail.filter { it.number in tickets }.sortedBy { it.dueAt }) { tickets.getValue(it.number) }
+        kitchen.assign(kitchen.rail.filter { it.number in tickets }.sortedBy { turnOf[it.number] ?: it.dueAt }) { tickets.getValue(it.number) }
 
     /** The pizza the maker starts next, by the rules: the one of the most urgent order that has none and that the stock is enough for. */
     fun nextToMake(): List<Topping>? =

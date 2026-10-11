@@ -22,6 +22,8 @@ import dev.deeptelar.telar.agent.execute
  * one slip at a time, so a slip also waits where others are before it.
  * @property desks the stations with a model: what each cost, and until when it is busy.
  * @property ticket the toppings a station wrote down, once one has.
+ * @property rush `true` once the expediter wrote on the ticket when the order is due.
+ * @property secondOven `true` once the slip passed the second oven, so that its pizza may be baked there.
  * @property path the stations the slip went through.
  * @property events what the stations did with it.
  */
@@ -34,6 +36,8 @@ data class Slip(
     val minute: Int = 0,
     val desks: Map<String, Desk> = emptyMap(),
     val ticket: List<Topping>? = null,
+    val rush: Boolean = false,
+    val secondOven: Boolean = false,
     val path: List<String> = emptyList(),
     val events: List<Event> = emptyList(),
 ) {
@@ -47,11 +51,13 @@ data class Slip(
     val entry: String get() = "#$order, table $table: $said"
 }
 
-/** A ticket that a station wrote, which reaches the kitchen at minute [at]. */
+/** A ticket that a station wrote, which reaches the kitchen at minute [at], with what the slip was stamped with on its way. */
 data class Written(
     val order: Int,
     val toppings: List<Topping>,
     val at: Int,
+    val rush: Boolean = false,
+    val secondOven: Boolean = false,
 )
 
 /**
@@ -67,6 +73,8 @@ data class Written(
  * @property coming what the stations did that the kitchen's clock has not got to.
  * @property stations the stations of the board that ask a model, by the id of their piece.
  * @property routes the stations each order went through, by its number.
+ * @property secondOven the orders whose pizza may be baked in the second oven.
+ * @property oven2 the chef of the second oven, when the board has one.
  */
 data class BoardShift(
     val floor: LineShift,
@@ -78,12 +86,15 @@ data class BoardShift(
     val coming: List<Event> = emptyList(),
     val stations: Map<String, Desk> = emptyMap(),
     val routes: Map<Int, List<String>> = emptyMap(),
+    val secondOven: Set<Int> = emptySet(),
+    val oven2: Desk = Desk(),
 ) : Service {
     constructor(kitchen: Kitchen, tokenBudget: Int = DEFAULT_TOKEN_BUDGET) : this(LineShift(kitchen, tokenBudget))
 
     override val kitchen: Kitchen get() = floor.kitchen
     override val tokenBudget: Int get() = floor.tokenBudget
-    override val desks: Map<String, Desk> get() = stations + mapOf("prep" to floor.prep, "oven" to floor.oven)
+    override val desks: Map<String, Desk>
+        get() = stations + mapOf("prep" to floor.prep, "oven" to floor.oven) + if (oven2 == Desk()) emptyMap() else mapOf("oven 2" to oven2)
     override val log: List<Event> get() = floor.log
 
     /** The tickets that reached the kitchen: the toppings of each order, by its number. */
@@ -150,6 +161,8 @@ private suspend fun Slip.at(piece: Piece, models: (PieceKind) -> ChatModel): Sli
         PieceKind.READER, PieceKind.BOOK_READER -> here.read(piece, models(piece.kind))
         // A sorter only decides which arrow the slip takes, and its conditional edge does that.
         PieceKind.ONLY_MENU, PieceKind.LOOKS_BACK -> here
+        PieceKind.EXPEDITER -> here.copy(rush = true)
+        PieceKind.SECOND_OVEN -> here.copy(secondOven = true)
     }
 }
 
@@ -231,14 +244,23 @@ fun Blueprint.kitchen(models: (PieceKind) -> ChatModel): CompiledGraph<BoardShif
                 if (turn == null) shift else shift.copy(floor = shift.floor.with("prep", turn).copy(prep = shift.floor.prep.after(turn)))
             }
         val bake =
-            node("oven", work = { shift -> shift.floor.ovenTurn(null) }) { shift, turn ->
+            node("oven", work = { shift -> shift.ovenTurn(0) }) { shift, turn ->
                 if (turn == null) shift else shift.copy(floor = shift.floor.with("oven", turn).copy(oven = shift.floor.oven.after(turn)))
+            }
+        // A board with a second oven has one more station that works in the same minutes as the others.
+        val bakeToo =
+            if (!hasSecondOven) {
+                null
+            } else {
+                node("oven2", work = { shift -> shift.ovenTurn(1) }) { shift, turn ->
+                    if (turn == null) shift else shift.copy(floor = shift.floor.with("oven 2", turn), oven2 = shift.oven2.after(turn))
+                }
             }
 
         START then rail
         conditionalEdge(rail, targets = setOf(board, bell)) { shift -> if (shift.slip != null) board else bell }
         board then rail
-        listOf(make, bake).forEach { bell then it then clock }
+        listOfNotNull(make, bake, bakeToo).forEach { bell then it then clock }
         conditionalEdge(clock, targets = setOf(rail, NodeRef.END)) { shift -> if (shift.over) NodeRef.END else rail }
     }.compile()
 }
@@ -264,8 +286,20 @@ private fun BoardShift.hear(): BoardShift {
     val next = queue.firstOrNull()?.copy(book = book, minute = now, desks = stations)
     val due = written.filter { it.at <= now }
     val told = coming.filter { it.minute <= now }
+    // A ticket keeps its turn when a guest changes the order. A new one is taken by its due time when the expediter
+    // wrote that on it, and after every ticket that has one, in the order it came, when not.
+    val turns =
+        due.filter { it.order !in floor.turnOf }.distinctBy { it.order }.mapIndexed { index, ticket ->
+            ticket.order to if (ticket.rush) kitchen.orders.first { it.number == ticket.order }.dueAt else LATER + floor.turnOf.size + index
+        }
     return copy(
-        floor = floor.copy(tickets = floor.tickets + due.associate { it.order to it.toppings }, log = floor.log + told.sortedBy { it.minute }),
+        floor =
+            floor.copy(
+                tickets = floor.tickets + due.associate { it.order to it.toppings },
+                log = floor.log + told.sortedBy { it.minute },
+                turnOf = floor.turnOf + turns,
+            ),
+        secondOven = secondOven + due.filter { it.secondOven }.map { it.order },
         book = if (next == null) book else book + next.entry,
         heardUntil = now,
         waiting = queue.drop(1),
@@ -279,8 +313,48 @@ private fun BoardShift.hear(): BoardShift {
 private fun BoardShift.took(slip: Slip): BoardShift =
     copy(
         stations = slip.desks,
-        written = written + listOfNotNull(slip.ticket?.let { Written(slip.order, it, slip.minute) }),
+        written = written + listOfNotNull(slip.ticket?.let { Written(slip.order, it, slip.minute, slip.rush, slip.secondOven) }),
         coming = coming + slip.events,
         routes = routes + (slip.order to slip.path),
         slip = null,
     )
+
+/** The turn of a ticket without a due time on it is after every ticket that has one. */
+private const val LATER = 1_000
+
+/** What a chef at an oven does next. [bakes] is the pizza it puts in, when that is what it does. */
+private class Move(
+    val bakes: String?,
+    val act: (Kitchen) -> Acted,
+)
+
+/** Lets the chef of oven [hand] start the next piece of work. Returns `null` when the chef is busy or can only wait. */
+private fun BoardShift.ovenTurn(hand: Int): Turn? {
+    val desk = if (hand == 0) floor.oven else oven2
+    if (desk.busyUntil > kitchen.minute || kitchen.over) return null
+    val move = move(hand) ?: return null
+    return Turn(kitchen.minute, Counter(kitchen).apply { act(move.act) })
+}
+
+/**
+ * What the chef of oven [hand] does next, by the rules: it serves a pizza it took out, takes a baked
+ * one out of its oven, or puts in the raw pizza whose turn it is. The two chefs never reach for the
+ * same pizza: each serves what came out of its own oven, and the second leaves the raw pizza that
+ * the first puts in this minute.
+ */
+private fun BoardShift.move(hand: Int): Move? {
+    val plan = floor.plan()
+    plan.firstOrNull { (_, pizza) -> pizza?.place == Place.PASS && pizza.oven == hand }?.let { (order, pizza) ->
+        return Move(null) { it.serve(order.number, pizza!!.name) }
+    }
+    kitchen.oven
+        .filter { it.oven == hand && kitchen.minute - it.inOvenSince!! >= Kitchen.BAKED_AFTER }
+        .minByOrNull { it.inOvenSince!! }
+        ?.let { pizza -> return Move(null) { it.takeOut(pizza.name) } }
+    if (kitchen.oven.count { it.oven == hand } >= Kitchen.OVEN_SLOTS) return null
+    val taken = if (hand == 0 || floor.oven.busyUntil > kitchen.minute) null else move(0)?.bakes
+    val raw =
+        plan.firstOrNull { (order, pizza) -> pizza?.place == Place.COUNTER && pizza.name != taken && (hand == 0 || order.number in secondOven) }?.second
+            ?: return null
+    return Move(raw.name) { it.bake(raw.name, hand) }
+}
