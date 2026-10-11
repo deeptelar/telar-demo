@@ -180,8 +180,16 @@ private fun HowToPlay() {
         Spec("02", "Press RUN and watch the ticket cross the board. A red tile is a node at work.")
         Spec("03", "When the run stops at a save point, decide. When it fails, retry.")
         Spec("04", "A reply that reaches END clears the stage and earns a slice.")
+        Spec(
+            "05",
+            "Stages ${stages.filter { it.usesModel }.joinToString(" and ") { it.number.toString() }} ask a model. Its answers are " +
+                "scripted too, until you choose a real model under Options. The other stages are scripted only.",
+        )
     }
 }
+
+private const val SCRIPTED_ONLY = "scripted only"
+private const val SCRIPTED_OR_MODEL = "scripted or a model"
 
 @Composable
 private fun StageCard(controller: StageController, cleared: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -209,6 +217,8 @@ private fun StageCard(controller: StageController, cleared: Boolean, modifier: M
         }
         DotMatrix(stage.title, pitch = 2.5.dp)
         Body(stage.moves, color = colors.dim)
+        // Only a stage that asks a model can get its answers from a real one.
+        Label(if (stage.usesModel) SCRIPTED_OR_MODEL else SCRIPTED_ONLY, color = if (stage.usesModel) colors.ink else colors.dim)
     }
 }
 
