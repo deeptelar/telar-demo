@@ -66,6 +66,22 @@ class StagesTest {
     }
 
     @Test
+    fun theWriterOfTheLoopAnswersTheMessageItGot() = runTest {
+        val graph = HelpDesks.loops(desk)
+        suspend fun replyTo(message: String) = graph.invoke(Ticket("Ben", message)).state.reply
+
+        assertEquals("Sorry Ben, your pizza is late. It arrives in 10 minutes.", replyTo("Still no pizza. It has been an hour."))
+
+        // Anything else gets a reply that says why, and still goes through the loop.
+        val thanks = graph.invoke(Ticket("Ben", "Thanks for the pizza, it was delicious")).state
+        assertEquals("Sorry Ben, this desk only knows about late pizzas. A colleague will reply soon.", thanks.reply)
+        assertEquals(3, thanks.attempts)
+
+        // "late" counts as a word, not as a part of one.
+        assertEquals(thanks.reply, replyTo("I loved the chocolate pizza"))
+    }
+
+    @Test
     fun bothLookupsWriteTheirFactIntoTheTicket() = runTest {
         val ticket = HelpDesks.parallel(desk).invoke(ana).state
 

@@ -74,11 +74,19 @@ object HelpDesks {
 
     const val LOOP_ATTEMPTS: Int = 5
 
-    /** Pretends to be a writer whose reply gets better with every attempt. */
-    private fun sloppyReply(ticket: Ticket): String = when (ticket.attempts) {
-        0 -> "Your pizza is late."
-        1 -> "Sorry, your pizza is late."
-        else -> "Sorry ${ticket.customer}, your pizza is late. It arrives in 10 minutes."
+    /**
+     * Pretends to be a writer whose reply gets better with every attempt. A late pizza is all it
+     * knows about, and it says so when the message is about something else.
+     */
+    private fun sloppyReply(ticket: Ticket): String {
+        val late = Regex("\\b(late|where|no pizza)\\b").containsMatchIn(ticket.message.lowercase())
+        val news = if (late) "your pizza is late" else "this desk only knows about late pizzas"
+        val next = if (late) "It arrives in 10 minutes." else "A colleague will reply soon."
+        return when (ticket.attempts) {
+            0 -> "${news.replaceFirstChar { it.uppercase() }}."
+            1 -> "Sorry, $news."
+            else -> "Sorry ${ticket.customer}, $news. $next"
+        }
     }
 
     /** Stage 3: an edge that goes back, so the reply is rewritten until it passes the check. */
