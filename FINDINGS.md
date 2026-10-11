@@ -415,3 +415,34 @@ What the pass showed:
   prices, which went out of date once already. For the other services it has one field and a
   default, and the service says so when the name is wrong.
 
+
+## The eleventh pass: a release that takes a workaround away
+
+`0.1.0-alpha09` reports what a browser throws in place of an exception as a failure: a request
+that got no response, and an error of JavaScript. This pass moved the game to the release from
+Maven Central.
+
+What changed here: the version of the seven dependencies, and `llm/Unreachable.kt` is gone. The
+models are no longer wrapped, because the library now does what the wrapper did.
+
+What was checked:
+
+- 63 tests pass on the JVM and 59 in headless Chrome (wasmJs), the same number as before the move.
+  One of them gives the game's own settings a client that fails the way a browser does, and expects
+  a `ChatModelException` from `chat` and from `stream`. It passes without the wrapper.
+- The browser bundle and the Android app build.
+- The file of `telar-core` that Gradle used has the checksum of the file on Maven Central.
+
+Not checked: a server that cannot be reached from the hosted game in a real browser, and the
+Android app on a device.
+
+What the pass showed:
+
+- **The finding of the tenth pass is fixed where it was found.** The game needed no code of its own
+  for it, in a model or in `Game.kt`.
+- **The player reads the library's message now.** It names the address and passes on the browser's
+  words: `Could not reach the API at http://localhost:11434/v1: Fail to fetch`. The wrapper also
+  asked whether the server runs, whether the device is online and whether the server takes requests
+  from the page. The browser gives the same two words for all three, so the library cannot tell
+  which it was, but a hint that lists them would help a reader who meets `Fail to fetch` for the
+  first time.

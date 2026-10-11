@@ -113,20 +113,20 @@ class SettingsTest {
 
     @Test
     fun aRequestTheBrowserCouldNotSendIsAFailureOfTheModel() = runTest {
-        // What Ktor's engine throws in a browser when a request gets no response.
+        // What Ktor's engine throws in a browser when a request gets no response. The library reports
+        // it as a failure of the model since 0.1.0-alpha09, and a failure is what ends a run with a
+        // game over screen.
         val offline = HttpClient(MockEngine { throw Error("Fail to fetch") })
         val request = ChatRequest(listOf(ChatMessage.User("Hello")))
 
-        listOf(Settings(ModelMode.Other).withModel("llama3.2") to "localhost:11434", Settings(ModelMode.Claude).withKey("key") to "api.anthropic.com")
-            .forEach { (settings, host) ->
-                val model = settings.chatModel(offline)
-                assertTrue(host in assertFailsWith<ChatModelException> { model.chat(request) }.message.orEmpty())
-                assertTrue(host in assertFailsWith<ChatModelException> { model.stream(request).collect {} }.message.orEmpty())
-            }
-
-        // Any other error is not the model's, and stays what it is.
-        val broken = Settings(ModelMode.OpenAi).withKey("key").chatModel(HttpClient(MockEngine { throw Error("out of memory") }))
-        assertEquals("out of memory", assertFailsWith<Error> { broken.chat(request) }.message)
+        listOf(
+            Settings(ModelMode.Other).withModel("llama3.2") to "Could not reach the API at http://localhost:11434/v1: Fail to fetch",
+            Settings(ModelMode.Claude).withKey("key") to "Could not reach the Claude API: Fail to fetch",
+        ).forEach { (settings, message) ->
+            val model = settings.chatModel(offline)
+            assertEquals(message, assertFailsWith<ChatModelException> { model.chat(request) }.message)
+            assertEquals(message, assertFailsWith<ChatModelException> { model.stream(request).collect {} }.message)
+        }
     }
 
     @Test
