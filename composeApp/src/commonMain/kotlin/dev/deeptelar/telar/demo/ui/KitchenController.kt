@@ -185,6 +185,9 @@ enum class Rush(
     /** The shift after this one. */
     val next: Rush? get() = entries.getOrNull(ordinal + 1)
 
+    /** `true` for a shift that brings a station. Such a shift shows the board and little else: its orders and its medals come with its result. */
+    val short: Boolean get() = teaches != null
+
     /** The stations a board of this shift may have: the ones the short shifts taught up to here, and all of them in a rush. */
     val offers: Set<PieceKind>
         get() = if (teaches == null) PieceKind.entries.toSet() else entries.take(ordinal + 1).mapNotNull { it.teaches }.toSet()
@@ -223,6 +226,7 @@ internal fun Int.grouped(): String =
  * @param played where the shifts that ran to their end are kept.
  * @param drawn where the board is kept.
  * @param chosen where the shift the player chose is kept.
+ * @param entered where it is kept whether the player is in that shift, or at the list of the shifts.
  * @param earned where the medals the player has won are kept, each with its shift.
  * @param onEarned told all of [earned] when a shift wins a medal that was not won before, to save it.
  */
@@ -236,12 +240,17 @@ class KitchenController(
     drawn: MutableState<Blueprint> = mutableStateOf(Guide.FIRST_ORDERS.start),
     chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
     earned: MutableState<Set<Pair<Rush, Medal>>> = mutableStateOf(emptySet()),
+    entered: MutableState<Boolean> = mutableStateOf(false),
     private val onEarned: (Set<Pair<Rush, Medal>>) -> Unit = {},
 ) {
     val scripted: Boolean = realModel == null
 
     /** The shift the next start plays. */
     var rush: Rush by chosen
+        private set
+
+    /** `true` when the player is in [rush]. Before that, and after leaving it, the shifts are listed to choose from. */
+    var inShift: Boolean by entered
         private set
 
     /** The orders of [shift], which stay when the player chooses the other shift for the next one. */
@@ -373,6 +382,18 @@ class KitchenController(
         problems = check(board, rush)
         val start = rush.guide?.start
         if (start != null && (rush.guided || problems.isNotEmpty())) load(start)
+    }
+
+    /** Goes into [rush] from the list of the shifts. */
+    fun enter(rush: Rush) {
+        if (running) return
+        choose(rush)
+        inShift = true
+    }
+
+    /** Goes back to the list of the shifts. A shift that runs is not left. */
+    fun leave() {
+        if (!running) inShift = false
     }
 
     /** Shows the steps of a short shift that does not show them by itself, or puts them away. */

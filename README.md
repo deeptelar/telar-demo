@@ -54,6 +54,11 @@ There are nine shifts. The first seven are short, four to eight orders each, and
 station that the shifts before it did not have and that it cannot be won without. The last two are
 the rushes, with every station on offer. No shift is locked.
 
+The stage opens with the list of the shifts, each with the station it brings and its medals.
+Pressing one goes into it, and the list is put away, as the stage select is when a stage is played.
+A short shift then shows its board and little else: its orders come with what became of them when
+the shift is over, and its medals come with its result.
+
 The first three shifts teach how a board is drawn, and each opens with a board that is drawn up to
 the one thing it teaches. Above the board is the next thing to press, one step at a time, and what
 it names blinks: a tile, an empty place, a station in the list, a button.
@@ -102,13 +107,15 @@ the station is named: in the list a place offers, in the line that says what the
 and with what each station cost.
 
 The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
-arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
-(`START`) to the kitchen (`END`). Where no step says what to press, a board that cannot run says
+arrow, a conditional edge for each sorter. With a station selected, "Show the code" shows the code
+of that station alone, its node and the arrows that start or end at it, as a stage shows the code of
+the tile that was pressed. Every order is one run of that graph, from the rail (`START`) to the
+kitchen (`END`). Where no step says what to press, a board that cannot run says
 why before the shift starts, and what the game does not check itself is reported by Telar when the
 graph is compiled.
 
-The orders of a shift are the same every time, and they are listed before it starts, with what
-the guests say later. Under each order is the way it takes across the board as you have drawn it.
+The orders of a shift are the same every time. In the rushes they are listed before the shift
+starts, with what the guests say later. Under each order is the way it takes across the board as you have drawn it.
 Only the sorters decide that way, and they are plain code, so the game knows it without asking a
 model.
 
@@ -129,8 +136,9 @@ Cheap and Small pull against each other. One reader with the book reads every or
 is the small board, and it pays for the whole book every time. The cheap board sorts its orders, so
 that a model reads only the ones that need it, and sorting takes stations. In the dinner rush the
 six places are the puzzle as well: every order on time needs the expediter and the second oven, and
-the sorters have to fit in what is left. The panel of the medals shows your best for each, and the
-shifts you played are listed side by side. The medals you won are kept between sessions, with the
+the sorters have to fit in what is left. The result of a shift shows which of its medals the board
+won. In the rushes a panel of the medals shows your best for each, and the shifts you played are
+listed side by side. The medals you won are kept between sessions, with the
 cleared stages.
 
 A board fits in a link. "Copy a link to this board" gives an address that opens the stage with that

@@ -125,6 +125,10 @@ class ScreenshotTest {
 
     @Test
     fun theKitchenRushCanBeDrawn() {
+        // The stage opens with the list of its shifts.
+        shoot("kitchen-shifts", Screen.Kitchen, height = 900)
+        shoot("kitchen-shifts-phone", Screen.Kitchen, width = 390, height = 1100)
+        game.kitchen.enter(Rush.Opening)
         // The first shift as a player finds it: its station on the board, and above the board the first thing to press.
         shoot("kitchen", Screen.Kitchen, height = 1300)
         // A phone has one panel under the other, and the one that matters at the moment comes first.
@@ -134,6 +138,10 @@ class ScreenshotTest {
         shoot("kitchen-step-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.tap(Blueprint.KITCHEN)
         shoot("kitchen-ready-phone", Screen.Kitchen, width = 390, height = 1900)
+        // The code of the station that is selected, in place of the whole graph.
+        game.kitchen.tap("lookup")
+        shoot("kitchen-selected-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.tap("lookup")
         game.kitchen.start()
         scope.advanceTimeBy(6_000)
         shoot("kitchen-phone-running", Screen.Kitchen, width = 390, height = 2300)

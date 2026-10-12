@@ -320,6 +320,7 @@ class StageController(
  * @param played the shifts of the bonus stage that ran to their end.
  * @param drawn the board of the bonus stage.
  * @param chosen the shift of the bonus stage that the player chose.
+ * @param entered whether the player is in that shift, or at the list of the shifts.
  */
 class Game(
     model: ChatModel,
@@ -332,6 +333,7 @@ class Game(
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
     drawn: MutableState<Blueprint> = mutableStateOf(Guide.FIRST_ORDERS.start),
     chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
+    entered: MutableState<Boolean> = mutableStateOf(false),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
@@ -351,6 +353,7 @@ class Game(
             drawn = drawn,
             chosen = chosen,
             earned = medals,
+            entered = entered,
             onEarned = ::saveMedals,
         )
 

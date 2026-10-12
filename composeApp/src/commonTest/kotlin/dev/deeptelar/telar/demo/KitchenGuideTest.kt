@@ -327,6 +327,25 @@ class KitchenGuideTest {
         assertNull(kitchen.step)
         assertFalse(kitchen.canHint)
 
+        // The stage opens at the list of its shifts. A shift is entered from there, and left again unless it runs.
+        assertFalse(kitchen.inShift)
+        kitchen.enter(Rush.Opening)
+        assertTrue(kitchen.inShift)
+        assertEquals(Rush.Opening, kitchen.rush)
+        assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
+        kitchen.load(Guide.through(PieceKind.LOOKUP))
+        kitchen.start()
+        kitchen.leave()
+        assertTrue(kitchen.inShift)
+        kitchen.enter(Rush.Wishes)
+        assertEquals(Rush.Opening, kitchen.rush)
+        advanceUntilIdle()
+        kitchen.leave()
+        assertFalse(kitchen.inShift)
+        // Entering the shift the player left keeps the board as it was.
+        kitchen.enter(Rush.Opening)
+        assertEquals(Guide.through(PieceKind.LOOKUP), kitchen.board)
+
         // The steps are put away when another shift is chosen.
         kitchen.choose(Rush.Book)
         kitchen.hint(true)

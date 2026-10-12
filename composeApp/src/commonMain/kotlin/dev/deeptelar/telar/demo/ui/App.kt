@@ -65,6 +65,8 @@ fun App() {
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
     val drawn = remember { mutableStateOf(linked?.board ?: Guide.FIRST_ORDERS.start) }
     val chosen = remember { mutableStateOf(linked?.rush ?: Rush.entries.first()) }
+    // A link leads into its shift. Without one the stage opens with the list of the shifts.
+    val entered = remember { mutableStateOf(linked != null) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 
     PizzaTheme {
@@ -72,7 +74,7 @@ fun App() {
         // New settings mean a new model, and with it fresh graphs. Cleared stages and saved runs are kept.
         val model = remember(settings) { settings.chatModel(httpClient) }
         val game = remember(model) {
-            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played, drawn = drawn, chosen = chosen)
+            Game(model, store, saves, scope, realModel = model.takeIf { settings.usesService }, modelLabel = settings.modelLabel, played = played, drawn = drawn, chosen = chosen, entered = entered)
         }
         GameScreens(game, settings, screen, onNavigate = { screen = it }) { updated ->
             loaded = updated
