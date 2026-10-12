@@ -77,6 +77,12 @@ so a shift starts with the board that won the one before.
 | Expediter | Plain code. Writes on the ticket when the order is due, and the kitchen takes those tickets first, the one that is due soonest before the others. | A place on the board |
 | Second oven | Two more places and a chef of its own, for the pizzas of the orders that pass it. | A place on the board |
 
+Every tile of the board has a picture in pixels: slips on the rail, a chef's hat for the kitchen,
+the menu for the lookup, a diamond for each sorter, a robot for the reader, its book for the reader
+with the book, a watch for the expediter and an oven with its fire. The same picture stands where
+the station is named: in the list a place offers, in the line that says what the kitchen did last,
+and with what each station cost.
+
 The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
 arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
 (`START`) to the kitchen (`END`). A board that cannot run says why before the shift starts, and
