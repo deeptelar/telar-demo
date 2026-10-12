@@ -236,7 +236,9 @@ class KitchenBoardTest {
         val lookUp = lookup.getValue("it uses")
         assertTrue(lookUp.startsWith("/** Writes the ticket of the first menu pizza that the order names."), lookUp)
         assertTrue("private fun Slip.lookUp(): Slip {\n    val pizza = MENU.entries.firstOrNull { it.key in words.lowercase() }" in lookUp, lookUp)
-        assertTrue(lookUp.endsWith("\n}"), lookUp)
+        // The function reads the menu, so the menu follows it.
+        assertTrue("\n}\n\n/** The menu, as the chef is told it. */\nval MENU: Map<String, List<Topping>> =\n    mapOf(\n        \"margherita\" to listOf(TOMATO, MOZZARELLA, BASIL)," in lookUp, lookUp)
+        assertTrue(lookUp.endsWith("\n    )"), lookUp)
 
         // A sorter has a conditional edge in place of two arrows, and its question with the pattern that answers it.
         val sorter = parts(BEST_BOARD, "looksBack")
@@ -255,11 +257,16 @@ class KitchenBoardTest {
         assertTrue("fun isAboutEarlier(words: String): Boolean = ABOUT_EARLIER.containsMatchIn(words)" in sorter.getValue("it uses"))
         assertTrue("private val ABOUT_EARLIER = Regex(" in sorter.getValue("it uses"))
         assertTrue("isOnlyAMenuPizza" !in sorter.getValue("it uses"))
+        // The pattern of that sorter does not name the menu. The one of the sorter for menu pizzas does, and the menu is shown with it.
+        assertTrue("MENU" !in sorter.getValue("it uses"))
+        assertTrue(parts(BEST_BOARD, "onlyMenu").getValue("it uses").endsWith("\"veggie\" to listOf(TOMATO, MOZZARELLA, MUSHROOMS, PEPPERS, ONIONS),\n    )"))
 
         // A reader: the one call to its model, and what that model is told to do.
         val reader = parts(BEST_BOARD, "reader").getValue("it uses")
         assertTrue("private suspend fun Slip.read(model: ChatModel, withBook: Boolean = false): Slip {" in reader, reader)
         assertTrue("val READER_ALONE: String =" in reader && "READER_WITH_BOOK: String" !in reader, reader)
+        // The rules of the reader name the rules of the menu, and those the menu: each is there, in that order.
+        assertTrue(listOf("val READER_ALONE", "private val READER_RULES", "val MENU_RULES", "val MENU:").map { reader.indexOf(it) }.let { it == it.sorted() && it.first() > 0 }, reader)
         assertEquals("val bookReader = node(\"bookReader\") { slip -> slip.read(model, withBook = true) }", parts(BEST_BOARD, "bookReader")["the node"])
         assertTrue("val READER_WITH_BOOK: String =" in parts(BEST_BOARD, "bookReader").getValue("it uses"))
 
@@ -299,6 +306,13 @@ class KitchenBoardTest {
         // The stations that stamp a slip show where the kitchen reads the stamp.
         assertTrue("if (ticket.rush)" in Blueprint().place(0, PieceKind.EXPEDITER).codeOf("expediter").last().code)
         assertTrue("order in secondOven" in Blueprint().place(0, PieceKind.SECOND_OVEN).codeOf("secondOven").last().code)
+    }
+
+    @Test
+    fun theStationsThatLookAtTheMenuAreShownWithIt() {
+        assertEquals(listOf(PieceKind.LOOKUP, PieceKind.ONLY_MENU, PieceKind.READER, PieceKind.BOOK_READER), PieceKind.entries.filter { it.readsMenu })
+        // The code of those stations ends with the menu, and no other names it.
+        PieceKind.entries.forEach { kind -> assertEquals(kind.readsMenu, "MENU" in kind.uses, kind.name) }
     }
 
     @Test

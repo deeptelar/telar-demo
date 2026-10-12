@@ -19,15 +19,18 @@ private val declarations: Map<String, String> by lazy {
         .toMap()
 }
 
-/** What the node of a station of this kind calls, and what that reads, by the names they have in the source. */
+/**
+ * What the node of a station of this kind calls, and what that reads, by the names they have in the
+ * source. A station that looks at the menu ends with the menu, so that no name in its code is left open.
+ */
 val PieceKind.uses: List<String>
     get() =
         when (this) {
-            PieceKind.LOOKUP -> listOf("lookUp")
-            PieceKind.ONLY_MENU -> listOf("isOnlyAMenuPizza", "ONLY_A_MENU_PIZZA")
+            PieceKind.LOOKUP -> listOf("lookUp", "MENU")
+            PieceKind.ONLY_MENU -> listOf("isOnlyAMenuPizza", "ONLY_A_MENU_PIZZA", "MENU")
             PieceKind.LOOKS_BACK -> listOf("isAboutEarlier", "ABOUT_EARLIER")
-            PieceKind.READER -> listOf("read", "READER_ALONE")
-            PieceKind.BOOK_READER -> listOf("read", "READER_WITH_BOOK")
+            PieceKind.READER -> listOf("read", "READER_ALONE", "READER_RULES", "MENU_RULES", "MENU")
+            PieceKind.BOOK_READER -> listOf("read", "READER_WITH_BOOK", "READER_RULES", "MENU_RULES", "MENU")
             // These two only stamp the slip. What they use is the place in the kitchen that reads the stamp.
             PieceKind.EXPEDITER -> listOf("turnOf")
             PieceKind.SECOND_OVEN -> listOf("mayBake")

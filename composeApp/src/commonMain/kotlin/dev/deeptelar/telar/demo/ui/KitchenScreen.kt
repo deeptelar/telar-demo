@@ -43,13 +43,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Desk
 import dev.deeptelar.telar.demo.kitchen.Exit
 import dev.deeptelar.telar.demo.kitchen.Kitchen
+import dev.deeptelar.telar.demo.kitchen.MENU
 import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.Order
 import dev.deeptelar.telar.demo.kitchen.Outcome
@@ -509,6 +513,23 @@ private fun NextStep(controller: KitchenController) {
     }
 }
 
+/** The menu of the pizzeria: each pizza with its toppings. It is shown with a station that looks at it. */
+@Composable
+private fun MenuCard() {
+    val colors = Theme.colors
+    Column(Modifier.semantics { contentDescription = "The menu" }, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Label("the menu")
+        MENU.forEach { (pizza, toppings) ->
+            val line =
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = colors.ink)) { append(pizza) }
+                    append(": ${toppings.joinToString { it.word }}")
+                }
+            BasicText(line, style = Theme.body.copy(color = colors.dim))
+        }
+    }
+}
+
 /** What the player can do next on the board: choose a station for a place, or draw the arrows of the tile that is selected. */
 @Composable
 private fun Hand(controller: KitchenController) {
@@ -543,6 +564,7 @@ private fun Hand(controller: KitchenController) {
                 Label(board.title(selected), color = colors.ink)
             }
             Body(board.job(selected), color = colors.dim)
+            if (board.piece(selected)?.kind?.readsMenu == true) MenuCard()
             board.exits(selected).forEach { exit ->
                 val target = board.target(selected, exit)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

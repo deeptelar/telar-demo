@@ -75,6 +75,9 @@ enum class PieceKind(
     ),
     ;
 
+    /** `true` when it looks at the menu, so the menu is shown with it: the lookup, the sorter for menu pizzas, and the readers, whose model is told it. */
+    val readsMenu: Boolean get() = this == LOOKUP || this == ONLY_MENU || asks
+
     /** What a sorter says to [words], the order as the guest said it. */
     fun says(words: String): Boolean =
         when (this) {

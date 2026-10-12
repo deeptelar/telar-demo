@@ -64,6 +64,9 @@ val embedKitchenSources by tasks.registering(EmbedSources::class) {
     sources.from(
         "src/commonMain/kotlin/dev/deeptelar/telar/demo/kitchen/Blueprint.kt",
         "src/commonMain/kotlin/dev/deeptelar/telar/demo/kitchen/BoardShift.kt",
+        // The menu, and what a model is told about it.
+        "src/commonMain/kotlin/dev/deeptelar/telar/demo/kitchen/LunchRush.kt",
+        "src/commonMain/kotlin/dev/deeptelar/telar/demo/kitchen/SoloChef.kt",
     )
     packageName.set("dev.deeptelar.telar.demo.kitchen")
     valueName.set("kitchenSources")
