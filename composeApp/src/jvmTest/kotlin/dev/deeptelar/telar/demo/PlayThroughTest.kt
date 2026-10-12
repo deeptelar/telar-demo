@@ -37,6 +37,7 @@ import dev.deeptelar.telar.demo.ui.Settings
 import dev.deeptelar.telar.demo.ui.TELAR_LINK
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Clicks through the screens the way a player does, so the buttons are known to be wired up. */
@@ -84,9 +85,14 @@ class PlayThroughTest {
         // A player starts in the first shift, with its station on the board and one arrow to draw.
         onNodeWithText("BONUS: KITCHEN RUSH").performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
-        onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").assertIsDisplayed()
-        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertIsDisplayed()
-        onNodeWithText("SHIFT 1 OF 9 / NEW STATION: MENU LOOKUP").performScrollTo().assertIsDisplayed()
+        // The stage opens with the list of its shifts. Pressing one goes into it, and the list is put away.
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").performScrollTo().performClick()
+        assertTrue(game.kitchen.inShift)
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertDoesNotExist()
+        onNodeWithText("KITCHEN RUSH / SHIFT 1 OF 9").assertIsDisplayed()
+        onNodeWithContentDescription("First orders").assertIsDisplayed()
+        onNodeWithText("NEW STATION: MENU LOOKUP").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Board: rail to lookup").performScrollTo().assertIsDisplayed()
         // The shift says what to press, one step at a time, in place of what is wrong with the board.
         onNodeWithText("STEP 1 OF 3").performScrollTo().assertIsDisplayed()
@@ -94,9 +100,9 @@ class PlayThroughTest {
         onNodeWithText("Menu lookup has no arrow. An order that gets there is stuck.").assertDoesNotExist()
         onNodeWithText("SHOW ME THE NEXT STEP").assertDoesNotExist()
 
-        // The orders can be read before the shift, each with the way it takes across the board.
-        onNodeWithText("ORDERS / FIRST ORDERS").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Order 4 goes rail > lookup > stuck").performScrollTo().assertIsDisplayed()
+        // A short shift is about its board: its orders and its medals are not listed before it.
+        onNodeWithText("ORDERS / FIRST ORDERS").assertDoesNotExist()
+        onNodeWithText("MEDALS / FIRST ORDERS").assertDoesNotExist()
 
         onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
         onNodeWithText("STEP 2 OF 3").performScrollTo().assertIsDisplayed()
@@ -106,7 +112,24 @@ class PlayThroughTest {
         onNodeWithContentDescription("Board: rail to lookup, lookup to kitchen").performScrollTo().assertIsDisplayed()
         onNodeWithText("STEP 3 OF 3").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Step: The board is ready. Start the shift.").assertIsDisplayed()
-        onNodeWithContentDescription("Order 4 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
+
+        // The code is of the whole graph, and of a station alone when one is selected.
+        onNodeWithText("SHOW THE CODE").performScrollTo().performClick()
+        onNodeWithText("CODE OF THE BOARD").performScrollTo().assertIsDisplayed()
+        // The code scrolls sideways in its box, so the page is moved to the line under it.
+        onNodeWithText("This is the whole graph. Press a station to see its node and its arrows alone.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("StateGraph<Slip> {", substring = true).assertIsDisplayed()
+        onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
+        onNodeWithText("CODE OF THE LOOKUP TILE").performScrollTo().assertIsDisplayed()
+        onNodeWithText("Its node, and the arrows that start or end at it.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("val lookup = node(\"lookup\") { slip -> slip.lookUp() }\n\nSTART then lookup\nlookup then END").assertIsDisplayed()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithText("CODE OF THE RAIL").performScrollTo().assertIsDisplayed()
+        onNodeWithText("Its node, and the arrows that start or end at it.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("START then lookup").assertIsDisplayed()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithText("HIDE THE CODE").performScrollTo().performClick()
+        onNodeWithContentDescription("The code of the board").assertDoesNotExist()
 
         // A board fits in a link, which opens the stage with that board drawn.
         onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
@@ -120,8 +143,9 @@ class PlayThroughTest {
         onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
         onNodeWithText("1 / FIRST ORDERS / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Shift 1: First orders, 1 of 1 medals, chosen").performScrollTo().assertIsDisplayed()
+        // The medal comes with the result.
+        onNodeWithContentDescription("Right medal: won").performScrollTo().assertIsDisplayed()
+        onNodeWithText("RIGHT / WON").performScrollTo().assertIsDisplayed()
         onNodeWithText("COPY THIS RESULT AND A LINK TO ITS BOARD").performScrollTo().performClick()
         assertEquals(
             "Pixel Pizza, first orders: 400 of 400 points for 0 tokens on 1 station. Can you beat this board? " +
@@ -132,14 +156,17 @@ class PlayThroughTest {
         // The next shift starts with the same board, which reads the name of a pizza and nothing else. Its steps begin with taking the lookup off.
         onNodeWithText("NEXT SHIFT: WISHES").performScrollTo().performClick()
         assertEquals(Rush.Wishes, game.kitchen.rush)
-        onNodeWithText("SHIFT 2 OF 9 / NEW STATION: READER").performScrollTo().assertIsDisplayed()
+        onNodeWithText("KITCHEN RUSH / SHIFT 2 OF 9").performScrollTo().assertIsDisplayed()
+        onNodeWithText("NEW STATION: READER").performScrollTo().assertIsDisplayed()
         onNodeWithText("STEP 1 OF 8").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Step: Press the lookup tile. This board does not need it.").assertIsDisplayed()
-        onNodeWithText("A pepperoni with extra cheese.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("A pepperoni with extra cheese.").assertDoesNotExist()
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
         onNodeWithText("100 of 400").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Serve every order right and on time. Open").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Right medal: not won").performScrollTo().assertIsDisplayed()
+        // The orders of the shift are there with what became of them.
+        onNodeWithText("A pepperoni with extra cheese.").performScrollTo().assertIsDisplayed()
         onNodeWithText("NEXT SHIFT: SORTING").assertDoesNotExist()
 
         // The lookup goes, and the station that is new in this shift takes its place.
@@ -162,17 +189,21 @@ class PlayThroughTest {
         // The orders of the shift that is over say where they would go on the new board.
         onAllNodesWithText("on the board now: rail > reader > kitchen").assertCountEquals(4)
 
-        onNodeWithText("SHOW THE CODE OF THIS BOARD").performScrollTo().performClick()
+        onNodeWithText("SHOW THE CODE").performScrollTo().performClick()
         onNodeWithContentDescription("The code of the board").performScrollTo().assertIsDisplayed()
 
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 3 }
         onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
         onNodeWithText("3 / WISHES / READER / SCRIPTED").performScrollTo().assertIsDisplayed()
-        onNodeWithContentDescription("Serve every order right and on time. Reached").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Right medal: won").performScrollTo().assertIsDisplayed()
         onNodeWithText("NEXT SHIFT: SORTING").performScrollTo().assertIsDisplayed()
 
         // A shift that shows its steps opens with its own board again when the player comes back to it.
+        onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
+        assertFalse(game.kitchen.inShift)
+        // The list has the medals that were won, and marks the shift the player came from.
+        onNodeWithContentDescription("Shift 2: Wishes, 1 of 1 medals, chosen").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Shift 1: First orders, 1 of 1 medals").performScrollTo().performClick()
         onNodeWithContentDescription("Board: rail to lookup").performScrollTo().assertIsDisplayed()
         onNodeWithText("START OVER").performScrollTo().assertIsDisplayed()
@@ -182,9 +213,11 @@ class PlayThroughTest {
         assertEquals(emptyList(), game.kitchen.problems)
 
         // No shift is locked. The rushes offer every station and have three medals.
+        onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
         onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").performScrollTo().performClick()
         assertEquals(Rush.Dinner, game.kitchen.rush)
-        onNodeWithText("SHIFT 9 OF 9 / EVERY STATION").performScrollTo().assertIsDisplayed()
+        onNodeWithText("KITCHEN RUSH / SHIFT 9 OF 9").performScrollTo().assertIsDisplayed()
+        onNodeWithText("EVERY STATION").performScrollTo().assertIsDisplayed()
         onNodeWithText("MEDALS / DINNER RUSH").performScrollTo().assertIsDisplayed()
         onNodeWithText("ORDERS / DINNER RUSH").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Order 12 goes rail > lookup > kitchen").performScrollTo().assertIsDisplayed()
@@ -200,6 +233,7 @@ class PlayThroughTest {
         onNodeWithText("4 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
 
         // The stage select screen leads here too.
+        onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()
         onNodeWithText("KITCHEN RUSH").performScrollTo().performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
@@ -217,8 +251,11 @@ class PlayThroughTest {
             }
         }
 
-        // The nine shifts are a row of numbers, and the board is drawn as on a wide screen.
-        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertIsDisplayed()
+        // The nine shifts are a list, one under the other. In a shift, the board is on the first screen with its step.
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").performScrollTo().performClick()
+        onNodeWithContentDescription("Step: Press the lookup tile.").assertIsDisplayed()
+        onNodeWithContentDescription("Station lookup").assertIsDisplayed()
         // The step is right above the board, and both fit the screen: with the last tile of the board on it, the step is there too,
         // and so is the next one after a press.
         onNodeWithContentDescription("The kitchen").performScrollTo()

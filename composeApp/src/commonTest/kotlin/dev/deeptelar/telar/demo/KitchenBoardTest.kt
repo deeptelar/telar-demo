@@ -215,6 +215,47 @@ class KitchenBoardTest {
     }
 
     @Test
+    fun theCodeOfATileIsItsNodeAndItsArrows() {
+        // A station: its node, and every arrow that starts or ends at it.
+        assertEquals(
+            """
+            val lookup = node("lookup") { slip -> slip.lookUp() }
+
+            conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
+                if (slip.isOnlyAMenuPizza) lookup else looksBack
+            }
+            lookup then END
+            """.trimIndent(),
+            BEST_BOARD.code("lookup"),
+        )
+        // A sorter has a conditional edge in place of two arrows.
+        assertEquals(
+            """
+            val looksBack = node("looksBack") { it }
+
+            conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
+                if (slip.isOnlyAMenuPizza) lookup else looksBack
+            }
+            conditionalEdge(looksBack, targets = setOf(bookReader, reader)) { slip ->
+                if (slip.isAboutEarlier) bookReader else reader
+            }
+            """.trimIndent(),
+            BEST_BOARD.code("looksBack"),
+        )
+        // The rail is START and has no node.
+        assertEquals("START then onlyMenu", BEST_BOARD.code(RAIL))
+        // A station without arrows says so, and a sorter has no conditional edge before both of its arrows are drawn.
+        val begun = Blueprint().place(0, PieceKind.ONLY_MENU).place(1, PieceKind.READER).connect("onlyMenu", Exit.YES, "reader")
+        assertEquals("val reader = node(\"reader\") { slip -> slip.read(model) }\n\n// No arrow yet.", begun.code("reader"))
+        assertEquals("val onlyMenu = node(\"onlyMenu\") { it }\n\n// No arrow yet.", begun.code("onlyMenu"))
+        assertEquals("// No arrow yet.", begun.code(RAIL))
+        // Every statement of a tile is one of the whole graph.
+        BEST_BOARD.pieces.forEach { piece ->
+            BEST_BOARD.code(piece.id).split("\n\n").flatMap { it.lines() }.forEach { line -> assertTrue(line.trim() in BEST_BOARD.code().lines().map { it.trim() }, line) }
+        }
+    }
+
+    @Test
     fun aModelReadsOneOrderAtATimeAndTakesAMinuteForEach() = runTest {
         val end = play(boardWith(PieceKind.BOOK_READER))
 

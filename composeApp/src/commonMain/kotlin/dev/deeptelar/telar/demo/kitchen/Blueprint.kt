@@ -236,40 +236,63 @@ data class Blueprint(
         return found.mapNotNull(::piece) + pieces.filter { it.id !in found }
     }
 
+    /** A statement of the graph of the board, without indentation, and the tiles it is about. */
+    private class Statement(val tiles: Set<String>, val text: String)
+
+    /** The node of each station, in the order an order can meet them. */
+    private fun nodes(): List<Statement> =
+        ordered().map { piece ->
+            val work =
+                when (piece.kind) {
+                    PieceKind.LOOKUP -> "slip -> slip.lookUp()"
+                    PieceKind.READER -> "slip -> slip.read(model)"
+                    PieceKind.BOOK_READER -> "slip -> slip.read(model, book = true)"
+                    PieceKind.EXPEDITER -> "slip -> slip.copy(rush = true)"
+                    PieceKind.SECOND_OVEN -> "slip -> slip.copy(secondOven = true)"
+                    else -> "it"
+                }
+            Statement(setOf(piece.id), "val ${piece.id} = node(\"${piece.id}\") { $work }")
+        }
+
+    /** The arrows: an edge for each, and a conditional edge for the two of a sorter. A sorter that lacks one has none yet. */
+    private fun edges(): List<Statement> {
+        fun ref(id: String) = if (id == KITCHEN) "END" else id
+        return listOfNotNull(target(RAIL, Exit.NEXT)?.let { Statement(setOf(RAIL, it), "START then ${ref(it)}") }) +
+            ordered().mapNotNull { piece ->
+                val id = piece.id
+                if (!piece.kind.sorts) return@mapNotNull target(id, Exit.NEXT)?.let { Statement(setOf(id, it), "$id then ${ref(it)}") }
+                val yes = target(id, Exit.YES) ?: return@mapNotNull null
+                val no = target(id, Exit.NO) ?: return@mapNotNull null
+                val question = if (piece.kind == PieceKind.ONLY_MENU) "isOnlyAMenuPizza" else "isAboutEarlier"
+                Statement(
+                    setOf(id, yes, no),
+                    "conditionalEdge($id, targets = setOf(${setOf(ref(yes), ref(no)).joinToString()})) { slip ->\n" +
+                        "    if (slip.$question) ${ref(yes)} else ${ref(no)}\n" +
+                        "}",
+                )
+            }
+    }
+
     /**
      * The board as the Kotlin that builds its graph with Telar. [graph] makes the same calls: a node
      * for each station, an edge for each arrow, and a conditional edge for each sorter.
      */
     fun code(): String {
-        fun ref(id: String) = if (id == KITCHEN) "END" else id
-        val stations = ordered()
-        val nodes =
-            stations.map { piece ->
-                val work =
-                    when (piece.kind) {
-                        PieceKind.LOOKUP -> "slip -> slip.lookUp()"
-                        PieceKind.READER -> "slip -> slip.read(model)"
-                        PieceKind.BOOK_READER -> "slip -> slip.read(model, book = true)"
-                        PieceKind.EXPEDITER -> "slip -> slip.copy(rush = true)"
-                        PieceKind.SECOND_OVEN -> "slip -> slip.copy(secondOven = true)"
-                        else -> "it"
-                    }
-                "    val ${piece.id} = node(\"${piece.id}\") { $work }"
-            }
-        val edges =
-            listOfNotNull(target(RAIL, Exit.NEXT)?.let { "    START then ${ref(it)}" }) +
-                stations.mapNotNull { piece ->
-                    val id = piece.id
-                    if (!piece.kind.sorts) return@mapNotNull target(id, Exit.NEXT)?.let { "    $id then ${ref(it)}" }
-                    val yes = target(id, Exit.YES) ?: return@mapNotNull null
-                    val no = target(id, Exit.NO) ?: return@mapNotNull null
-                    val question = if (piece.kind == PieceKind.ONLY_MENU) "isOnlyAMenuPizza" else "isAboutEarlier"
-                    "    conditionalEdge($id, targets = setOf(${setOf(ref(yes), ref(no)).joinToString()})) { slip ->\n" +
-                        "        if (slip.$question) ${ref(yes)} else ${ref(no)}\n" +
-                        "    }"
-                }
+        val nodes = nodes().map { it.text.prependIndent("    ") }
+        val edges = edges().map { it.text.prependIndent("    ") }
         return (listOf("StateGraph<Slip> {") + nodes + listOf("").filter { nodes.isNotEmpty() && edges.isNotEmpty() } + edges + "}.compile()")
             .joinToString("\n")
+    }
+
+    /**
+     * The part of [code] that is about the tile of [id]: the node of a station, and after it the
+     * arrows that start or end there. The rail has no node, so it has only its arrow.
+     */
+    fun code(id: String): String {
+        val node = nodes().filter { id in it.tiles }.map { it.text }
+        val arrows = edges().filter { id in it.tiles }.map { it.text }
+        val none = listOf("// No arrow yet.").filter { arrows.isEmpty() }
+        return (node + listOf("").filter { node.isNotEmpty() } + arrows + none).joinToString("\n")
     }
 
     /** `true` when the kitchen of this board has a second oven. */
