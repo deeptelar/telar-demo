@@ -130,40 +130,44 @@ class StageCode(function: String, sources: Collection<String>) {
 
         fun Block.builds(function: String): Boolean = head.contains("fun $function(") && "StateGraph<" in head
 
-        fun String.isComment(): Boolean = trimStart().let { it.startsWith("//") || it.startsWith("/*") || it.startsWith("*") }
+        fun blocks(lines: List<String>, indent: Int): List<Block> = sourceBlocks(lines, indent).map(::Block)
+    }
+}
 
-        /**
-         * Splits [lines] into the blocks that start at [indent]. A block is its comment, the line
-         * it starts on, every deeper line after it, and the line at [indent] that closes it.
-         */
-        fun blocks(lines: List<String>, indent: Int): List<Block> {
-            val result = mutableListOf<Block>()
-            var current = mutableListOf<String>()
-            var hasCode = false
+/** `true` for a line of a comment. */
+internal fun String.isComment(): Boolean = trimStart().let { it.startsWith("//") || it.startsWith("/*") || it.startsWith("*") }
 
-            fun finish() {
-                if (hasCode) result += Block(current.joinToString("\n") { it.drop(indent) }.trimEnd())
-                current = mutableListOf()
-                hasCode = false
+/**
+ * Splits the [lines] of a source file into the blocks that start at [indent]. A block is its comment,
+ * the line it starts on, every deeper line after it, and the line at [indent] that closes it. It is
+ * returned without that indentation.
+ */
+internal fun sourceBlocks(lines: List<String>, indent: Int): List<String> {
+    val result = mutableListOf<String>()
+    var current = mutableListOf<String>()
+    var hasCode = false
+
+    fun finish() {
+        if (hasCode) result += current.joinToString("\n") { it.drop(indent) }.trimEnd()
+        current = mutableListOf()
+        hasCode = false
+    }
+
+    for (line in lines) {
+        val text = line.trim()
+        val depth = line.length - line.trimStart().length
+        when {
+            // An empty line is part of a block that has started, and ends a comment that stands alone.
+            text.isEmpty() -> if (hasCode) current += "" else current.clear()
+            depth < indent -> finish()
+            depth > indent || text.startsWith("}") || text.startsWith(")") -> if (current.isNotEmpty()) current += line
+            else -> {
+                if (hasCode) finish()
+                current += line
+                if (!text.isComment()) hasCode = true
             }
-
-            for (line in lines) {
-                val text = line.trim()
-                val depth = line.length - line.trimStart().length
-                when {
-                    // An empty line is part of a block that has started, and ends a comment that stands alone.
-                    text.isEmpty() -> if (hasCode) current += "" else current.clear()
-                    depth < indent -> finish()
-                    depth > indent || text.startsWith("}") || text.startsWith(")") -> if (current.isNotEmpty()) current += line
-                    else -> {
-                        if (hasCode) finish()
-                        current += line
-                        if (!text.isComment()) hasCode = true
-                    }
-                }
-            }
-            finish()
-            return result
         }
     }
+    finish()
+    return result
 }

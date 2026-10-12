@@ -195,9 +195,14 @@ class KitchenRushTest {
         assertEquals(Blueprint.KITCHEN, kitchen.board.target("onlyMenu", Exit.NO))
         kitchen.redraw(Exit.NO)
         kitchen.tap("bookReader")
-        // The kitchen has no arrows, so it is never selected.
+        // The kitchen has no arrows to draw. With nothing in hand it is selected, to see what it does, and let go when it is pressed again.
         kitchen.tap(Blueprint.KITCHEN)
-        assertEquals("onlyMenu", kitchen.selected)
+        assertEquals(Blueprint.KITCHEN, kitchen.selected)
+        assertNull(kitchen.armed)
+        assertEquals(emptyList(), kitchen.board.exits(Blueprint.KITCHEN))
+        kitchen.tap(Blueprint.KITCHEN)
+        assertNull(kitchen.selected)
+        assertEquals(emptyList(), kitchen.problems)
 
         kitchen.start()
         assertNull(kitchen.selected)

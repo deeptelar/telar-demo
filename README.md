@@ -108,8 +108,11 @@ and with what each station cost.
 
 The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
 arrow, a conditional edge for each sorter. With a station selected, "Show the code" shows the code
-of that station alone, its node and the arrows that start or end at it, as a stage shows the code of
-the tile that was pressed. Every order is one run of that graph, from the rail (`START`) to the
+of that station alone, as a stage shows the code of the tile that was pressed: its node, the arrows
+that start or end at it, and the function its node calls, such as `lookUp()` or `read(model)`. That
+function is cut out of the source by the build, so it is the code that runs. On a phone a long line
+goes on in the next one. The rail and the kitchen can be pressed too: each says what it does, and
+its code is its arrows. Every order is one run of that graph, from the rail (`START`) to the
 kitchen (`END`). Where no step says what to press, a board that cannot run says
 why before the shift starts, and what the game does not check itself is reported by Telar when the
 graph is compiled.

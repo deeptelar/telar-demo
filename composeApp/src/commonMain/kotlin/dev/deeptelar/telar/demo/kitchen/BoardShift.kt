@@ -41,9 +41,6 @@ data class Slip(
     val path: List<String> = emptyList(),
     val events: List<Event> = emptyList(),
 ) {
-    val isOnlyAMenuPizza: Boolean get() = PieceKind.ONLY_MENU.says(words)
-    val isAboutEarlier: Boolean get() = PieceKind.LOOKS_BACK.says(words)
-
     /** The slip as a reader is told it. */
     val line: String get() = "Order #$order, table $table: $words"
 
@@ -158,7 +155,8 @@ private suspend fun Slip.at(piece: Piece, models: (PieceKind) -> ChatModel): Sli
     val here = copy(path = path + piece.id)
     return when (piece.kind) {
         PieceKind.LOOKUP -> here.lookUp()
-        PieceKind.READER, PieceKind.BOOK_READER -> here.read(piece, models(piece.kind))
+        PieceKind.READER -> here.read(models(piece.kind))
+        PieceKind.BOOK_READER -> here.read(models(piece.kind), withBook = true)
         // A sorter only decides which arrow the slip takes, and its conditional edge does that.
         PieceKind.ONLY_MENU, PieceKind.LOOKS_BACK -> here
         PieceKind.EXPEDITER -> here.copy(rush = true)
@@ -178,12 +176,15 @@ private fun Slip.lookUp(): Slip {
 }
 
 /**
- * Asks the model of [piece] for the ticket once. The answer takes a minute, and the model starts
- * only when it is done with the slip before, so the slip leaves later than it came.
+ * Asks [model] for the ticket once, and tells it what the guests said before when it reads [withBook].
+ * The answer takes a minute, and the model starts only when it is done with the slip before, so the
+ * slip leaves later than it came.
  */
-private suspend fun Slip.read(piece: Piece, model: ChatModel): Slip {
-    val withBook = piece.kind == PieceKind.BOOK_READER
-    val desk = desks[piece.id] ?: Desk()
+private suspend fun Slip.read(model: ChatModel, withBook: Boolean = false): Slip {
+    // The station the slip is at is the last of its path.
+    val station = path.last()
+    val tile = (if (withBook) PieceKind.BOOK_READER else PieceKind.READER).tile
+    val desk = desks[station] ?: Desk()
     val done = maxOf(minute, desk.busyUntil) + Kitchen.THINK_MINUTES
     var written: List<Topping>? = null
     val pad =
@@ -203,14 +204,14 @@ private suspend fun Slip.read(piece: Piece, model: ChatModel): Slip {
     val event =
         if (toppings == null) {
             val why = response.message.text.trim().take(SAID_LENGTH).ifEmpty { "it wrote none" }
-            Event(done, piece.kind.tile, "No ticket for #$order: $why", refused = true)
+            Event(done, tile, "No ticket for #$order: $why", refused = true)
         } else {
-            Event(done, piece.kind.tile, "Ticket #$order: ${toppings.words()}.")
+            Event(done, tile, "Ticket #$order: ${toppings.words()}.")
         }
     return copy(
         minute = done,
         ticket = toppings ?: ticket,
-        desks = desks + (piece.id to desk.answered(response.usage).copy(busyUntil = done)),
+        desks = desks + (station to desk.answered(response.usage).copy(busyUntil = done)),
         events = events + event,
     )
 }
@@ -307,11 +308,10 @@ private fun BoardShift.hear(): BoardShift {
     val next = queue.firstOrNull()?.copy(book = book, minute = now, desks = stations)
     val due = written.filter { it.at <= now }
     val told = coming.filter { it.minute <= now }
-    // A ticket keeps its turn when a guest changes the order. A new one is taken by its due time when the expediter
-    // wrote that on it, and after every ticket that has one, in the order it came, when not.
+    // A ticket keeps its turn when a guest changes the order.
     val turns =
         due.filter { it.order !in floor.turnOf }.distinctBy { it.order }.mapIndexed { index, ticket ->
-            ticket.order to if (ticket.rush) kitchen.orders.first { it.number == ticket.order }.dueAt else LATER + floor.turnOf.size + index
+            ticket.order to turnOf(ticket, arrived = floor.turnOf.size + index)
         }
     return copy(
         floor =
@@ -340,8 +340,22 @@ private fun BoardShift.took(slip: Slip): BoardShift =
         slip = null,
     )
 
+/**
+ * The turn of a new ticket in the kitchen, where the lowest is made and baked first. A ticket that the
+ * expediter stamped is taken by the minute its order is due. One without the stamp comes after every
+ * ticket that has it, in the order it [arrived].
+ */
+private fun BoardShift.turnOf(ticket: Written, arrived: Int): Int =
+    if (ticket.rush) kitchen.orders.first { it.number == ticket.order }.dueAt else LATER + arrived
+
 /** The turn of a ticket without a due time on it is after every ticket that has one. */
 private const val LATER = 1_000
+
+/**
+ * `true` when the chef of oven [hand] may bake the pizza of [order]. The first oven takes every pizza,
+ * and the second only those whose slip passed the station of the second oven.
+ */
+private fun BoardShift.mayBake(order: Int, hand: Int): Boolean = hand == 0 || order in secondOven
 
 /** What a chef at an oven does next. [bakes] is the pizza it puts in, when that is what it does. */
 private class Move(
@@ -375,7 +389,7 @@ private fun BoardShift.move(hand: Int): Move? {
     if (kitchen.oven.count { it.oven == hand } >= Kitchen.OVEN_SLOTS) return null
     val taken = if (hand == 0 || floor.oven.busyUntil > kitchen.minute) null else move(0)?.bakes
     val raw =
-        plan.firstOrNull { (order, pizza) -> pizza?.place == Place.COUNTER && pizza.name != taken && (hand == 0 || order.number in secondOven) }?.second
+        plan.firstOrNull { (order, pizza) -> pizza?.place == Place.COUNTER && pizza.name != taken && mayBake(order.number, hand) }?.second
             ?: return null
     return Move(raw.name) { it.bake(raw.name, hand) }
 }
