@@ -3,9 +3,11 @@ package dev.deeptelar.telar.demo.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -14,27 +16,34 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.deeptelar.telar.demo.kitchen.Blueprint
@@ -52,6 +61,7 @@ import dev.deeptelar.telar.demo.kitchen.Service
 import dev.deeptelar.telar.demo.kitchen.Way
 import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.report
+import kotlinx.coroutines.flow.drop
 
 /**
  * The bonus stage: one shift of a pizzeria. The player draws how an order gets from the rail to the
@@ -59,7 +69,7 @@ import dev.deeptelar.telar.demo.kitchen.report
  * its models use.
  */
 @Composable
-fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
+fun KitchenScreen(controller: KitchenController, scroll: ScrollState? = null, onStages: () -> Unit) {
     val compact = LocalCompact.current
     // A shift of the other orders is not shown while the player plans this one. It stays under "Your shifts".
     val shift = controller.shift?.takeIf { controller.running || controller.playingRush == controller.rush }
@@ -69,20 +79,22 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
         Label("bonus stage / nine shifts", color = Theme.colors.red)
         DotMatrix("Kitchen rush", pitch = if (compact) 3.dp else 5.dp)
         Body(
-            "Orders come in until the kitchen closes, and the kitchen makes exactly what the ticket says. You draw how an order becomes " +
-                "a ticket and reaches the oven: stations, and arrows between them. Every order is one run of the graph on your board.",
+            // A narrow screen says it in a line, so that the board is on the first screen.
+            if (compact) {
+                "Draw the way an order takes from the rail to the kitchen: stations, and arrows between them."
+            } else {
+                "Orders come in until the kitchen closes, and the kitchen makes exactly what the ticket says. You draw how an order becomes " +
+                    "a ticket and reaches the oven: stations, and arrows between them. Every order is one run of the graph on your board."
+            },
             Modifier.widthIn(max = 720.dp),
             color = Theme.colors.dim,
         )
     }
-    ShiftMenu(controller)
 
     if (compact) {
-        Builder(controller, Modifier.fillMaxWidth())
-        Goals(controller, Modifier.fillMaxWidth())
-        if (shift != null) ShiftPanels(controller, shift) else OrdersAhead(controller)
-        Shifts(controller, Modifier.fillMaxWidth())
+        Narrow(controller, shift, scroll)
     } else {
+        ShiftMenu(controller)
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 Builder(controller, Modifier.fillMaxWidth())
@@ -95,6 +107,151 @@ fun KitchenScreen(controller: KitchenController, onStages: () -> Unit) {
         }
     }
 }
+
+/**
+ * The stage on a narrow screen, where the panels are one under the other. What matters at the moment
+ * comes first and fits the screen: the board while the player draws, the shift while it runs, and
+ * its result when it is over. The page moves there when a shift starts and when it ends.
+ */
+@Composable
+private fun Narrow(controller: KitchenController, shift: BoardShift?, scroll: ScrollState?) {
+    // Where the menu of the shifts ends on the page. The first panel of every phase begins under it.
+    var menuEnd by remember { mutableStateOf(0f) }
+    val gap = with(LocalDensity.current) { PAGE_LEAD.toPx() }
+    if (scroll != null) {
+        LaunchedEffect(scroll, controller) {
+            snapshotFlow { controller.running }.drop(1).collect { scroll.animateScrollTo((menuEnd + gap).toInt()) }
+        }
+    }
+    ShiftMenu(controller, Modifier.onGloballyPositioned { menuEnd = it.positionInParent().y + it.size.height })
+
+    if (shift != null && controller.running) {
+        Watch(controller, shift)
+        Rail(controller, shift)
+        Log(shift)
+        Stations(controller, shift)
+        return
+    }
+    if (shift != null) {
+        controller.error?.let { error ->
+            Panel("The shift stopped", Modifier.fillMaxWidth(), edge = Theme.colors.red) { Body(error, color = Theme.colors.red) }
+        }
+        if (controller.finished) Result(controller, shift) else Meters(controller, shift)
+    }
+    Builder(controller, Modifier.fillMaxWidth())
+    if (shift != null) Rail(controller, shift) else OrdersAhead(controller)
+    Goals(controller, Modifier.fillMaxWidth())
+    if (shift != null) {
+        Floor(shift.kitchen, running = false, ovens = if (controller.playing.hasSecondOven) 2 else 1)
+        Log(shift)
+        Stations(controller, shift)
+    }
+    Shifts(controller, Modifier.fillMaxWidth())
+}
+
+/** How far under the menu of the shifts a narrow page is moved to: past the gap between two panels, less a margin above the panel. */
+private val PAGE_LEAD = 36.dp
+
+/**
+ * A running shift on a narrow screen, in one panel: the clock, the board with the order that is on
+ * it, what the kitchen did last, the ovens, and how every order stands.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Watch(controller: KitchenController, shift: BoardShift) {
+    val colors = Theme.colors
+    val kitchen = shift.kitchen
+    val score = kitchen.score()
+    val orders = kitchen.orders.size - score.cancelled
+    val ovens = if (controller.playing.hasSecondOven) 2 else 1
+    Panel("The shift / ${controller.playingRush.title}", Modifier.fillMaxWidth(), trailing = { Label("running", color = colors.red) }) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Meter("clock", "minute ${kitchen.minute} of ${kitchen.closesAt}", kitchen.minute.toFloat() / kitchen.closesAt, colors.ink)
+                // The two wrap where a long count of tokens leaves no room for both in a line.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Label("${score.points} of ${orders * Score.ON_TIME_POINTS} points", color = colors.yellow)
+                    Label("${shift.spent.grouped()} tokens", color = colors.ink)
+                }
+            }
+            PillButton("Stop", controller::stop)
+        }
+        KitchenBoard(controller, Modifier.fillMaxWidth())
+        Now(shift)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            repeat(ovens) { oven -> PixelOven(kitchen, lit = true, Modifier.weight(1f), oven, small = true) }
+        }
+        Label("counter: ${kitchen.made.count { it.place == Place.COUNTER }} raw / pass: ${kitchen.made.count { it.place == Place.PASS }} baked")
+        OrderChips(controller, shift)
+    }
+}
+
+/** What the kitchen did last, in the two lines it always takes, so that a look says what is going on. */
+@Composable
+private fun Now(shift: Service) {
+    val colors = Theme.colors
+    // A station logs what it does with the minute it is done, which can be ahead of the clock.
+    val last = shift.log.filter { it.minute <= shift.kitchen.minute }.sortedBy { it.minute }.lastOrNull()
+    Column(
+        Modifier.fillMaxWidth().height(58.dp).semantics(mergeDescendants = true) { contentDescription = "Now: ${last?.text ?: "nothing yet"}" },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Label(if (last == null) "the kitchen is open" else "minute ${last.minute} / ${last.station}", color = if (last?.refused == true) colors.red else colors.ink)
+        BasicText(
+            last?.text ?: "No order has reached a station yet.",
+            style = Theme.body.copy(color = if (last?.refused == true) colors.red else colors.dim),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private const val CHIPS_IN_A_ROW = 4
+private val CHIP_GAP = 6.dp
+
+/** Every order of the shift as a small tile with a word for how it stands, which is how a narrow screen shows them all at once. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OrderChips(controller: KitchenController, shift: BoardShift) {
+    val colors = Theme.colors
+    val minute = shift.kitchen.minute
+    val shape = RoundedCornerShape(4.dp)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val width = (maxWidth - CHIP_GAP * (CHIPS_IN_A_ROW - 1)) / CHIPS_IN_A_ROW
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(CHIP_GAP), verticalArrangement = Arrangement.spacedBy(CHIP_GAP)) {
+            shift.kitchen.standing.forEach { order ->
+                val onBoard = controller.reading == order.number
+                val (word, color) = if (onBoard) "reading" to colors.onRed else order.standing(minute, order.number in shift.tickets, colors)
+                val here = order.placedAt <= minute
+                Column(
+                    Modifier
+                        .width(width)
+                        .background(if (onBoard) colors.red else colors.ground, shape)
+                        .border(1.dp, if (onBoard) colors.red else if (here && order.outcome == Outcome.OPEN) colors.dim else colors.line, shape)
+                        .semantics(mergeDescendants = true) { contentDescription = "Order ${order.number}: $word" }
+                        .padding(horizontal = 4.dp, vertical = 5.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Label("#${order.number}", color = if (onBoard) colors.onRed else if (here) colors.ink else colors.dim)
+                    Label(word, color = color)
+                }
+            }
+        }
+    }
+}
+
+/** How an order stands at [minute], in a word short enough for a tile. [ticket] says whether the kitchen has one for it. */
+private fun Order.standing(minute: Int, ticket: Boolean, colors: Palette): Pair<String, Color> =
+    when {
+        placedAt > minute -> "min $placedAt" to colors.dim
+        outcome == Outcome.OPEN && minute > dueAt -> "overdue" to colors.red
+        outcome == Outcome.OPEN -> if (ticket) "cooking" to colors.ink else "waiting" to colors.dim
+        outcome == Outcome.ON_TIME -> "on time" to colors.ink
+        outcome == Outcome.LATE -> "late" to colors.yellow
+        outcome == Outcome.WRONG -> "wrong" to colors.red
+        outcome == Outcome.ALLERGY -> "allergen" to colors.red
+        else -> "cancelled" to colors.dim
+    }
 
 /**
  * What puts a text on the clipboard. `null` stands for the clipboard of the platform, and a test
@@ -134,32 +291,58 @@ private fun CopyButton(label: String, text: () -> String, modifier: Modifier = M
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ShiftMenu(controller: KitchenController) {
+private fun ShiftMenu(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val shape = RoundedCornerShape(4.dp)
+
+    fun Modifier.tile(rush: Rush): Modifier {
+        val selected = controller.rush == rush
+        val medals = controller.medals(rush)
+        return background(colors.ground, shape)
+            .border(if (selected) 2.dp else 1.dp, if (selected) colors.ink else colors.line, shape)
+            .pointerHoverIcon(if (controller.running) PointerIcon.Default else PointerIcon.Hand)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Shift ${rush.number}: ${rush.title}, ${medals.count { it.second }} of ${medals.size} medals" +
+                    if (selected) ", chosen" else ""
+            }
+            .clickable(enabled = !controller.running, role = Role.RadioButton) { controller.choose(rush) }
+    }
+
+    if (LocalCompact.current) {
+        // A narrow screen has the nine shifts in one row, as numbers, and the name of the chosen one under them.
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Rush.entries.forEach { rush ->
+                    val selected = controller.rush == rush
+                    Column(
+                        Modifier.weight(1f).tile(rush).padding(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Label(rush.number.toString(), color = if (selected) colors.red else colors.dim)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            controller.medals(rush).forEach { (_, won) -> Box(Modifier.size(5.dp).background(if (won) colors.yellow else colors.line)) }
+                        }
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("shift ${controller.rush.number} of ${Rush.entries.size}", color = colors.red)
+                Label(controller.rush.title, color = colors.ink)
+            }
+        }
+        return
+    }
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Rush.entries.forEach { rush ->
             val selected = controller.rush == rush
-            val medals = controller.medals(rush)
-            val shape = RoundedCornerShape(4.dp)
-            Column(
-                Modifier
-                    .background(colors.ground, shape)
-                    .border(if (selected) 2.dp else 1.dp, if (selected) colors.ink else colors.line, shape)
-                    .pointerHoverIcon(if (controller.running) PointerIcon.Default else PointerIcon.Hand)
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = "Shift ${rush.number}: ${rush.title}, ${medals.count { it.second }} of ${medals.size} medals" +
-                            if (selected) ", chosen" else ""
-                    }
-                    .clickable(enabled = !controller.running, role = Role.RadioButton) { controller.choose(rush) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            Column(Modifier.tile(rush).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Label(rush.number.toString(), color = if (selected) colors.red else colors.dim)
                     Label(rush.title, color = if (selected) colors.ink else colors.dim)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    medals.forEach { (_, won) -> PixelArt(Sprites.medal, pixel = 2.dp, tint = if (won) Color.Unspecified else colors.line) }
+                    controller.medals(rush).forEach { (_, won) -> PixelArt(Sprites.medal, pixel = 2.dp, tint = if (won) Color.Unspecified else colors.line) }
                 }
             }
         }
@@ -170,19 +353,11 @@ private fun ShiftMenu(controller: KitchenController) {
 @Composable
 private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
+    val compact = LocalCompact.current
     var showCode by remember { mutableStateOf(false) }
-    Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
-        val rush = controller.rush
-        Label(
-            "shift ${rush.number} of ${Rush.entries.size} / " + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
-            color = colors.red,
-        )
-        Body(rush.detail, color = colors.dim)
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
-        KitchenBoard(controller, Modifier.fillMaxWidth())
-        Hand(controller)
-        controller.problems.forEach { problem -> Body(problem, color = colors.red) }
 
+    @Composable
+    fun code() {
         PillButton(if (showCode) "Hide the code" else "Show the code of this board", { showCode = !showCode }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
         if (showCode) {
             Box(Modifier.fillMaxWidth().background(colors.panel, RoundedCornerShape(4.dp)).horizontalScroll(rememberScrollState()).padding(12.dp)) {
@@ -194,8 +369,10 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
                 )
             }
         }
+    }
 
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+    @Composable
+    fun model() {
         if (controller.scripted) {
             Spec("model", "scripted. No model is asked, and the tokens are a guess. Choose a real model under Options.")
         } else {
@@ -211,6 +388,10 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
             val page = remember { pageAddress() ?: DEMO_ADDRESS }
             CopyButton("Copy a link to this board", { KitchenLink(controller.rush, controller.board).address(page) }, Modifier.offset(x = (-10).dp))
         }
+    }
+
+    @Composable
+    fun buttons() {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (controller.running) {
                 PillButton("Stop", controller::stop)
@@ -223,6 +404,33 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
                 )
                 PillButton("Clear the board", { controller.load(Blueprint()) }, emphasis = Emphasis.Quiet)
             }
+        }
+    }
+
+    Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
+        val rush = controller.rush
+        // On a narrow screen the number of the shift is right above, under the menu.
+        Label(
+            (if (compact) "" else "shift ${rush.number} of ${Rush.entries.size} / ") + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
+            color = colors.red,
+        )
+        Body(rush.detail, color = colors.dim)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+        KitchenBoard(controller, Modifier.fillMaxWidth())
+        Hand(controller)
+        controller.problems.forEach { problem -> Body(problem, color = colors.red) }
+
+        if (compact) {
+            // On a narrow screen the button that starts the shift is under the board, before what is seldom needed.
+            buttons()
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+            model()
+            code()
+        } else {
+            code()
+            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+            model()
+            buttons()
         }
     }
 }
@@ -263,7 +471,11 @@ private fun Hand(controller: KitchenController) {
             }
             if (board.piece(selected) != null) PillButton("Remove the station", controller::remove)
         }
-        else -> Body("Press an empty place to add a station. Press a station or the rail, and then the tile its arrow goes to.", color = colors.dim)
+        // Nothing is selected: what to press next, as far as the board has got.
+        board.pieces.isEmpty() -> Body("Press a + to put a station on the board.")
+        board.target(Blueprint.RAIL, Exit.NEXT) == null -> Body("Press the rail, and then the station that gets every order first.")
+        controller.problems.isNotEmpty() -> Body("Press a station, and then the tile its arrow goes to.")
+        else -> Body("This board can run. Press a station to change its arrows, or a + to add a station.", color = colors.dim)
     }
 }
 
@@ -321,7 +533,9 @@ private fun OrdersAhead(controller: KitchenController) {
     val board = controller.board
     val kitchen = remember(rush) { rush.orders() }
     val heard = remember(rush) { kitchen.heard() }
-    Panel("Orders / ${rush.title}", Modifier.fillMaxWidth(), trailing = { Label("known before the shift") }) {
+    // A narrow screen has no room for a second label beside the title of a panel.
+    val compact = LocalCompact.current
+    Panel("Orders / ${rush.title}", Modifier.fillMaxWidth(), trailing = { if (!compact) Label("known before the shift") }) {
         Body(
             "The kitchen is closed, and these are the orders it will get: the same every time. Under each is the way it takes across " +
                 "the board as you have drawn it. Start a shift to see what the kitchen makes of them.",
@@ -409,7 +623,8 @@ private fun Meter(name: String, value: String, fraction: Float, color: Color) {
 private fun Stations(controller: KitchenController, shift: BoardShift) {
     val colors = Theme.colors
     val asking = controller.playing.pieces.filter { it.kind.asks }
-    Panel("Stations", Modifier.fillMaxWidth(), trailing = { Label("one run of the graph for each order") }) {
+    val compact = LocalCompact.current
+    Panel("Stations", Modifier.fillMaxWidth(), trailing = { if (!compact) Label("one run of the graph for each order") }) {
         asking.forEach { piece ->
             val desk = shift.stations[piece.id] ?: Desk()
             Spec(piece.kind.tile, "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers")

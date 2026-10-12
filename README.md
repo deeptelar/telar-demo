@@ -116,6 +116,10 @@ Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens on 5 stations. Ca
 https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2
 ```
 
+On a phone the board stands upright, with the rail at the top and the kitchen at the bottom, and the
+page shows one thing at a time. While a shift runs that is one panel with the clock, the board, the
+oven and a tile for every order, and when it is over the result takes its place.
+
 Without a key the readers are scripted: the one with the book is always right, and the one without
 it cannot know what it was not told. Their token counts are a guess from the length of the text,
 the same every time, and the medal for few tokens is set for them. With a real model under

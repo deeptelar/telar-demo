@@ -127,9 +127,14 @@ class ScreenshotTest {
     fun theKitchenRushCanBeDrawn() {
         // The first shift as a player finds it, and after it was won.
         shoot("kitchen", Screen.Kitchen, height = 1300)
+        // A phone has one panel under the other, and the one that matters at the moment comes first.
+        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.load(Blueprint.FIRST)
         game.kitchen.start()
+        scope.advanceTimeBy(6_000)
+        shoot("kitchen-phone-running", Screen.Kitchen, width = 390, height = 2300)
         scope.advanceUntilIdle()
+        shoot("kitchen-phone-over", Screen.Kitchen, width = 390, height = 3900)
         shoot("kitchen-first-over", Screen.Kitchen, height = 1900)
 
         // The lunch rush, and the stations an empty place offers in it.
@@ -151,7 +156,6 @@ class ScreenshotTest {
         shoot("kitchen-running", Screen.Kitchen, height = 2000)
         scope.advanceUntilIdle()
         shoot("kitchen-over", Screen.Kitchen, height = 2300)
-        shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 5600)
 
         // The dinner rush, with both ovens at work in the second wave.
         game.kitchen.choose(Rush.Dinner)
@@ -159,6 +163,7 @@ class ScreenshotTest {
         game.kitchen.start()
         scope.advanceTimeBy(21_500)
         shoot("kitchen-dinner", Screen.Kitchen, height = 2300)
+        shoot("kitchen-dinner-phone", Screen.Kitchen, width = 390, height = 3600)
         scope.advanceUntilIdle()
         shoot("kitchen-dinner-over", Screen.Kitchen, height = 2300)
     }

@@ -108,7 +108,8 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.colors.line))
                 // Keyed on the screen, so each one starts scrolled to its top.
                 key(screen) {
-                    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+                    val scroll = rememberScrollState()
+                    Box(Modifier.fillMaxSize().verticalScroll(scroll), contentAlignment = Alignment.TopCenter) {
                         Column(
                             Modifier
                                 .widthIn(max = 1080.dp)
@@ -119,7 +120,7 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                             when (screen) {
                                 Screen.Title -> Unit
                                 Screen.Stages -> StageSelectScreen(game, onKitchen = { onNavigate(Screen.Kitchen) }) { onNavigate(Screen.Play(it)) }
-                                Screen.Kitchen -> KitchenScreen(game.kitchen) { onNavigate(Screen.Stages) }
+                                Screen.Kitchen -> KitchenScreen(game.kitchen, scroll) { onNavigate(Screen.Stages) }
                                 is Screen.Play -> StageScreen(
                                     game.controller(screen.stage),
                                     realModel = settings.modelLabel.takeIf { settings.usesService },

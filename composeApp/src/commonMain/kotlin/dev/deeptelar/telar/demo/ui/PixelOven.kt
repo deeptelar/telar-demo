@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.deeptelar.telar.demo.kitchen.Kitchen
 import dev.deeptelar.telar.demo.kitchen.Pizza
@@ -67,6 +68,7 @@ private const val GRID_WIDTH = 21
 private const val GRID_HEIGHT = 18
 private const val SMOKE_ROWS = 4
 private val PIXEL = 4.dp
+private val SMALL_PIXEL = 3.dp
 
 private val MOUTH = Color(0xFF0B0908)
 private val EMBER = Color(0xFF6E1D12)
@@ -103,9 +105,11 @@ private val SMOKE_PUFFS =
  *
  * @param lit `true` while the shift runs, which is when the fire moves.
  * @param oven which oven of the kitchen this is: 0 for the first.
+ * @param small `true` for an oven that two of fit side by side on a narrow screen: smaller pixels,
+ *   and under a place only the name of its pizza and how far it is.
  */
 @Composable
-fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, oven: Int = 0) {
+fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, oven: Int = 0, small: Boolean = false) {
     val seen = remember { arrayOfNulls<String>(Kitchen.OVEN_SLOTS) }
     val places = ovenPlaces(seen.toList(), kitchen.oven.filter { it.oven == oven }.map { it.name })
     val called = if (oven == 0) "Oven" else "Oven ${oven + 1}"
@@ -114,7 +118,7 @@ fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, ove
     val time by rememberInfiniteTransition().animateFloat(0f, FLAMES.size.toFloat(), infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Restart))
     val frame = if (lit) time.toInt().coerceIn(0, FLAMES.lastIndex) else 0
 
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(if (small) 8.dp else 16.dp)) {
         places.forEachIndexed { index, name ->
             val pizza = kitchen.oven.firstOrNull { it.name == name }
             val minutes = pizza?.let { kitchen.minute - it.inOvenSince!! }
@@ -124,9 +128,9 @@ fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, ove
                 },
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Chamber(minutes, frame)
-                CookBar(minutes)
-                Caption(pizza, minutes)
+                Chamber(minutes, frame, if (small) SMALL_PIXEL else PIXEL)
+                CookBar(minutes, if (small) 4.dp else 6.dp)
+                if (small) SmallCaption(pizza, minutes) else Caption(pizza, minutes)
             }
         }
     }
@@ -134,12 +138,12 @@ fun PixelOven(kitchen: Kitchen, lit: Boolean, modifier: Modifier = Modifier, ove
 
 /** One place of the oven. [minutes] is how long its pizza has been in, or `null` when the place is empty. */
 @Composable
-private fun Chamber(minutes: Int?, frame: Int) {
+private fun Chamber(minutes: Int?, frame: Int, pixel: Dp) {
     val brick = lerp(Theme.colors.line, Theme.colors.dim, 0.4f)
     val joint = Theme.colors.ground
     val glow = Theme.colors.yellow
-    Canvas(Modifier.size(PIXEL * GRID_WIDTH, PIXEL * GRID_HEIGHT)) {
-        val side = PIXEL.toPx()
+    Canvas(Modifier.size(pixel * GRID_WIDTH, pixel * GRID_HEIGHT)) {
+        val side = pixel.toPx()
 
         fun pixel(x: Int, y: Int, color: Color) = drawRect(color, Offset(x * side, y * side), Size(side + 0.5f, side + 0.5f))
 
@@ -200,7 +204,7 @@ private fun DrawScope.pie(minutes: Int, originX: Int, originY: Int, side: Float)
 
 /** The minutes of a pizza in the oven as a bar: a part for each minute until it is baked, and a part for each minute it can still stay. */
 @Composable
-private fun CookBar(minutes: Int?) {
+private fun CookBar(minutes: Int?, wide: Dp) {
     val colors = Theme.colors
     Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
         repeat(Kitchen.BURNT_AFTER) { part ->
@@ -212,8 +216,29 @@ private fun CookBar(minutes: Int?) {
                     else -> colors.red
                 }
             // The gap after the sixth part is where the pizza is baked.
-            Box(Modifier.size(width = 6.dp, height = 4.dp).background(color))
+            Box(Modifier.size(width = wide, height = 4.dp).background(color))
             if (part == Kitchen.BAKED_AFTER - 1) Box(Modifier.size(width = 1.dp, height = 4.dp))
+        }
+    }
+}
+
+@Composable
+private fun bakeColor(minutes: Int): Color =
+    when (bake(minutes)) {
+        Bake.BAKING -> Theme.colors.ink
+        Bake.BAKED -> Theme.colors.yellow
+        Bake.BURNT -> Theme.colors.red
+    }
+
+/** The caption of a place of a small oven: two short lines that stay as high when the place is empty. */
+@Composable
+private fun SmallCaption(pizza: Pizza?, minutes: Int?) {
+    Column {
+        Label(pizza?.name ?: "empty", color = if (pizza == null) Theme.colors.dim else Theme.colors.ink)
+        if (pizza == null || minutes == null) {
+            Label("")
+        } else {
+            Label(if (bake(minutes) == Bake.BAKING) "$minutes of ${Kitchen.BAKED_AFTER}" else bake(minutes).name.lowercase(), color = bakeColor(minutes))
         }
     }
 }
@@ -225,12 +250,7 @@ private fun Caption(pizza: Pizza?, minutes: Int?) {
         Label("empty")
         return
     }
-    val color =
-        when (bake(minutes)) {
-            Bake.BAKING -> colors.ink
-            Bake.BAKED -> colors.yellow
-            Bake.BURNT -> colors.red
-        }
+    val color = bakeColor(minutes)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Label(pizza.name, color = colors.ink)
         Label(bakeText(minutes), color = color)
