@@ -192,17 +192,21 @@ private fun Now(shift: Service) {
     val colors = Theme.colors
     // A station logs what it does with the minute it is done, which can be ahead of the clock.
     val last = shift.log.filter { it.minute <= shift.kitchen.minute }.sortedBy { it.minute }.lastOrNull()
-    Column(
+    Row(
         Modifier.fillMaxWidth().height(58.dp).semantics(mergeDescendants = true) { contentDescription = "Now: ${last?.text ?: "nothing yet"}" },
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Label(if (last == null) "the kitchen is open" else "minute ${last.minute} / ${last.station}", color = if (last?.refused == true) colors.red else colors.ink)
-        BasicText(
-            last?.text ?: "No order has reached a station yet.",
-            style = Theme.body.copy(color = if (last?.refused == true) colors.red else colors.dim),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // Who did it, as the picture its tile has on the board.
+        PixelArt(last?.let { stationSprite(it.station) } ?: Sprites.chefHat, Modifier.padding(top = 2.dp), pixel = 2.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Label(if (last == null) "the kitchen is open" else "minute ${last.minute} / ${last.station}", color = if (last?.refused == true) colors.red else colors.ink)
+            BasicText(
+                last?.text ?: "No order has reached a station yet.",
+                style = Theme.body.copy(color = if (last?.refused == true) colors.red else colors.dim),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -410,10 +414,13 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
     Panel("Draw the kitchen", modifier, trailing = { Label("${controller.board.pieces.size} of ${Blueprint.SLOTS} places") }) {
         val rush = controller.rush
         // On a narrow screen the number of the shift is right above, under the menu.
-        Label(
-            (if (compact) "" else "shift ${rush.number} of ${Rush.entries.size} / ") + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
-            color = colors.red,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            rush.teaches?.let { PixelArt(it.sprite, pixel = 2.dp) }
+            Label(
+                (if (compact) "" else "shift ${rush.number} of ${Rush.entries.size} / ") + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
+                color = colors.red,
+            )
+        }
         Body(rush.detail, color = colors.dim)
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
         KitchenBoard(controller, Modifier.fillMaxWidth())
@@ -449,11 +456,16 @@ private fun Hand(controller: KitchenController) {
             // A short shift offers the stations up to the one it teaches. A station that a board can have only once is not offered again.
             val teaches = controller.rush.teaches
             controller.rush.offers.filterNot { kind -> kind.once && board.pieces.any { it.kind == kind } }.forEach { kind ->
-                Choice(false, kind.title, if (kind == teaches) "New in this shift. ${kind.job}" else kind.job, onClick = { controller.put(kind) }, role = Role.Button)
+                Choice(false, kind.title, if (kind == teaches) "New in this shift. ${kind.job}" else kind.job, onClick = { controller.put(kind) }, role = Role.Button) {
+                    PixelArt(kind.sprite, pixel = 2.dp)
+                }
             }
         }
         selected != null -> {
-            Label(board.title(selected), color = colors.ink)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                board.sprite(selected)?.let { PixelArt(it, pixel = 2.dp) }
+                Label(board.title(selected), color = colors.ink)
+            }
             Body(board.piece(selected)?.kind?.job ?: "Every order and every change of an order starts here.", color = colors.dim)
             board.exits(selected).forEach { exit ->
                 val target = board.target(selected, exit)
@@ -627,12 +639,21 @@ private fun Stations(controller: KitchenController, shift: BoardShift) {
     Panel("Stations", Modifier.fillMaxWidth(), trailing = { if (!compact) Label("one run of the graph for each order") }) {
         asking.forEach { piece ->
             val desk = shift.stations[piece.id] ?: Desk()
-            Spec(piece.kind.tile, "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers")
+            StationSpec(piece.kind.sprite, piece.kind.tile, "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers")
         }
         if (asking.isEmpty()) Spec("board", "No station of this board asks a model.", colors.dim)
-        Spec("prep", "makes what the tickets say. Plain code, no tokens.", colors.dim)
-        Spec("oven", "bakes and serves. Plain code, no tokens.", colors.dim)
-        if (controller.playing.hasSecondOven) Spec("oven 2", "bakes and serves the pizzas that may go into it. Plain code, no tokens.", colors.dim)
+        StationSpec(Sprites.chefHat, "prep", "makes what the tickets say. Plain code, no tokens.", colors.dim)
+        StationSpec(Sprites.oven, "oven", "bakes and serves. Plain code, no tokens.", colors.dim)
+        if (controller.playing.hasSecondOven) StationSpec(Sprites.oven, "oven 2", "bakes and serves the pizzas that may go into it. Plain code, no tokens.", colors.dim)
+    }
+}
+
+/** A station with the picture its tile has on the board, and what is said about it. */
+@Composable
+private fun StationSpec(sprite: Sprite, name: String, value: String, valueColor: Color = Theme.colors.ink) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        PixelArt(sprite, pixel = 2.dp)
+        Box(Modifier.weight(1f)) { Spec(name, value, valueColor) }
     }
 }
 

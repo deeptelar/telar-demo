@@ -73,6 +73,10 @@ object SpriteColors {
     val cheese: Color = Color(0xFFFFC700)
     val crust: Color = Color(0xFFC98A1B)
     val pepperoni: Color = Color(0xFFC8102E)
+    val paper: Color = Color(0xFFFFFFFF)
+
+    /** What is red in a sprite, when the sprite stands on red. */
+    val shadow: Color = Color(0xFF040404)
 }
 
 private val LocalPalette = staticCompositionLocalOf { Dark }

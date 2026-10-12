@@ -172,9 +172,20 @@ fun Field(
     }
 }
 
-/** One of several choices, or a tick box when it stands alone: a square that fills when it is on. */
+/**
+ * One of several choices, or a tick box when it stands alone: a square that fills when it is on.
+ * A choice that is a thing with a picture gives the picture as [mark], which takes the place of the square.
+ */
 @Composable
-fun Choice(selected: Boolean, title: String, detail: String, onClick: () -> Unit, modifier: Modifier = Modifier, role: Role = Role.RadioButton) {
+fun Choice(
+    selected: Boolean,
+    title: String,
+    detail: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    role: Role = Role.RadioButton,
+    mark: (@Composable () -> Unit)? = null,
+) {
     val colors = Theme.colors
     Row(
         modifier
@@ -184,10 +195,14 @@ fun Choice(selected: Boolean, title: String, detail: String, onClick: () -> Unit
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.padding(top = 3.dp).size(14.dp).border(1.dp, if (selected) colors.red else colors.dim).padding(3.dp)
-                .background(if (selected) colors.red else Color.Transparent),
-        )
+        if (mark != null) {
+            mark()
+        } else {
+            Box(
+                Modifier.padding(top = 3.dp).size(14.dp).border(1.dp, if (selected) colors.red else colors.dim).padding(3.dp)
+                    .background(if (selected) colors.red else Color.Transparent),
+            )
+        }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Label(title, color = if (selected) colors.ink else colors.dim)
             if (detail.isNotEmpty()) Body(detail, color = colors.dim)
