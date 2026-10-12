@@ -33,6 +33,7 @@ import dev.deeptelar.telar.demo.game.Cell
 import dev.deeptelar.telar.demo.kitchen.Arrow
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Touch
 import kotlin.math.max
 
 // The measures of the kitchen's board in dp. Lying, the rail is on the left, the kitchen on the right,
@@ -191,20 +192,29 @@ fun KitchenBoard(controller: KitchenController, modifier: Modifier = Modifier) {
                     Label(arrow.exit.word, Modifier.offset(at.x.dp, at.y.dp), color = if (arrow.exit == Exit.YES) colors.ink else colors.dim)
                 }
 
-                val drawing = editing && controller.armed != null
-                PlaceTile("rail", "The rail", look(controller, Blueprint.RAIL, drawing = false), layout.tile(RAIL_CELL), Sprites.rail, terminal = true) {
+                // A step names what to press, and then only that blinks. Without one, every tile an arrow in hand can go to does.
+                val touch = controller.step?.touch
+                val next = (touch as? Touch.Press)?.ids.orEmpty()
+                val drawing = editing && controller.armed != null && touch == null
+                PlaceTile("rail", "The rail", look(controller, Blueprint.RAIL, drawing = false, next), layout.tile(RAIL_CELL), Sprites.rail, terminal = true) {
                     controller.tap(Blueprint.RAIL)
                 }
-                PlaceTile("kitchen", "The kitchen", look(controller, Blueprint.KITCHEN, drawing), layout.tile(KITCHEN_CELL), Sprites.chefHat, terminal = true) {
+                PlaceTile("kitchen", "The kitchen", look(controller, Blueprint.KITCHEN, drawing, next), layout.tile(KITCHEN_CELL), Sprites.chefHat, terminal = true) {
                     controller.tap(Blueprint.KITCHEN)
                 }
                 repeat(Blueprint.SLOTS) { slot ->
                     val piece = board.at(slot)
                     if (piece == null) {
-                        val look = if (editing && controller.picking == slot) PlaceLook.Selected else PlaceLook.Empty
+                        val look =
+                            when {
+                                !editing -> PlaceLook.Empty
+                                (touch as? Touch.Place)?.slot == slot -> PlaceLook.Next
+                                controller.picking == slot -> PlaceLook.Selected
+                                else -> PlaceLook.Empty
+                            }
                         PlaceTile(if (editing) "+" else "", "Place ${slot + 1}", look, layout.tile(slotCell(slot)), enabled = editing) { controller.tapSlot(slot) }
                     } else {
-                        PlaceTile(piece.kind.tile, "Station ${piece.id}", look(controller, piece.id, drawing), layout.tile(slotCell(slot)), piece.kind.sprite) {
+                        PlaceTile(piece.kind.tile, "Station ${piece.id}", look(controller, piece.id, drawing, next), layout.tile(slotCell(slot)), piece.kind.sprite) {
                             controller.tap(piece.id)
                         }
                     }
@@ -223,12 +233,16 @@ private fun BoardLayout.wired(board: Blueprint, arrow: Arrow): Pair<Arrow, List<
     return arrow to wire(from, to, arrow.exit)
 }
 
-private enum class PlaceLook { Idle, Empty, Selected, Target, Running }
+private enum class PlaceLook { Idle, Empty, Selected, Target, Next, Running }
 
-/** How the tile of [id] looks: at work in a shift, selected, or offered as the end of the arrow that is being drawn. */
-private fun look(controller: KitchenController, id: String, drawing: Boolean): PlaceLook =
+/**
+ * How the tile of [id] looks: at work in a shift, the one of [next] that a step says to press,
+ * selected, or offered as the end of the arrow that is being drawn.
+ */
+private fun look(controller: KitchenController, id: String, drawing: Boolean, next: List<String>): PlaceLook =
     when {
         controller.running -> if (controller.at == id) PlaceLook.Running else PlaceLook.Idle
+        id in next -> PlaceLook.Next
         controller.selected == id -> PlaceLook.Selected
         drawing -> PlaceLook.Target
         else -> PlaceLook.Idle
@@ -253,23 +267,23 @@ private fun PlaceTile(
             PlaceLook.Idle -> colors.dim
             PlaceLook.Empty -> colors.line
             PlaceLook.Selected -> colors.ink
-            PlaceLook.Target -> colors.yellow
+            PlaceLook.Target, PlaceLook.Next -> colors.yellow
             PlaceLook.Running -> colors.red
         }
     val ink =
         when (look) {
             PlaceLook.Empty -> colors.dim
             PlaceLook.Running -> colors.onRed
-            PlaceLook.Target -> colors.yellow
+            PlaceLook.Target, PlaceLook.Next -> colors.yellow
             else -> colors.ink
         }
     Column(
         Modifier
             .offset(tile.left.dp, tile.top.dp)
             .size(TILE_WIDTH.dp, TILE_HEIGHT.dp)
-            .alpha(if (look == PlaceLook.Target) waiting.coerceAtLeast(0.55f) else 1f)
+            .alpha(if (look == PlaceLook.Target || look == PlaceLook.Next) waiting.coerceAtLeast(0.55f) else 1f)
             .background(if (look == PlaceLook.Running) colors.red else colors.ground, shape)
-            .border(if (look == PlaceLook.Selected) 2.dp else 1.dp, edge, shape)
+            .border(if (look == PlaceLook.Selected || look == PlaceLook.Next) 2.dp else 1.dp, edge, shape)
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
             .semantics { contentDescription = description }
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),

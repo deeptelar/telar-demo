@@ -6,6 +6,7 @@ import dev.deeptelar.telar.agent.ChatModel
 import dev.deeptelar.telar.agent.ChatModelException
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Guide
 import dev.deeptelar.telar.demo.kitchen.LineShift
 import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.SHIFT_STEPS
@@ -312,10 +313,10 @@ class KitchenRushTest {
         val earned = mutableStateOf(emptySet<Pair<Rush, Medal>>())
         val kitchen = KitchenController(null, "scripted", this, minuteMillis = 0, earned = earned, onEarned = { saved += it })
 
-        // A player starts in the first shift, with an empty board and one station to put on it.
+        // A player starts in the first shift, with its station on the board and one arrow to draw.
         assertEquals(Rush.Opening, kitchen.rush)
-        assertEquals(Blueprint(), kitchen.board)
-        assertEquals(listOf("The rail has no arrow. Draw one to the station that gets every order first."), kitchen.problems)
+        assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
+        assertEquals(listOf("Menu lookup has no arrow. An order that gets there is stuck."), kitchen.problems)
         assertEquals(setOf(PieceKind.LOOKUP), kitchen.rush.offers)
         assertEquals(
             listOf(
@@ -344,14 +345,16 @@ class KitchenRushTest {
         // A station of a later shift is not offered, and a board that has one does not start.
         kitchen.tapSlot(0)
         kitchen.put(PieceKind.READER)
-        assertEquals(Blueprint(), kitchen.board)
+        assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
         kitchen.load(boardWith(PieceKind.READER))
         assertEquals(listOf("Reader comes in a later shift. Take it off the board, or choose that shift."), kitchen.problems)
         kitchen.start()
         assertFalse(kitchen.running)
-        kitchen.choose(Rush.Wishes)
+        // A rush has every station and keeps the board. The first shift opens with its own again.
+        kitchen.choose(Rush.Lunch)
         assertEquals(emptyList(), kitchen.problems)
         kitchen.choose(Rush.Opening)
+        assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
         assertEquals(1, kitchen.problems.size)
 
         // Each shift is won on the board of the one before with its new station added.

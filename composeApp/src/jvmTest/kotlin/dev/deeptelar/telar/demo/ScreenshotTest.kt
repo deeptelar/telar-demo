@@ -125,17 +125,52 @@ class ScreenshotTest {
 
     @Test
     fun theKitchenRushCanBeDrawn() {
-        // The first shift as a player finds it, and after it was won.
+        // The first shift as a player finds it: its station on the board, and above the board the first thing to press.
         shoot("kitchen", Screen.Kitchen, height = 1300)
         // A phone has one panel under the other, and the one that matters at the moment comes first.
         shoot("kitchen-phone", Screen.Kitchen, width = 390, height = 1900)
-        game.kitchen.load(Blueprint.FIRST)
+        // The arrow is in hand, and the step names the tile it goes to.
+        game.kitchen.tap("lookup")
+        shoot("kitchen-step-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.tap(Blueprint.KITCHEN)
+        shoot("kitchen-ready-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.start()
         scope.advanceTimeBy(6_000)
         shoot("kitchen-phone-running", Screen.Kitchen, width = 390, height = 2300)
         scope.advanceUntilIdle()
         shoot("kitchen-phone-over", Screen.Kitchen, width = 390, height = 3900)
         shoot("kitchen-first-over", Screen.Kitchen, height = 1900)
+
+        // The second shift: the lookup is off the board, and the list of a place marks the station the step names.
+        game.kitchen.choose(Rush.Wishes)
+        shoot("kitchen-wishes-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.tap("lookup")
+        shoot("kitchen-remove-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.remove()
+        game.kitchen.tapSlot(2)
+        shoot("kitchen-choose-phone", Screen.Kitchen, width = 390, height = 1900)
+
+        // The third shift asks where the arrows of the sorter go, and both stations they can go to blink.
+        game.kitchen.choose(Rush.Sorting)
+        shoot("kitchen-sorting-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.tap("onlyMenu")
+        shoot("kitchen-ask-phone", Screen.Kitchen, width = 390, height = 1900)
+        shoot("kitchen-ask", Screen.Kitchen, height = 1300)
+        // With the arrows the wrong way round, the steps the player asks for lead to the button that draws an arrow again.
+        game.kitchen.tap("reader")
+        game.kitchen.tap("lookup")
+        shoot("kitchen-ready", Screen.Kitchen, height = 1300)
+        game.kitchen.hint(true)
+        game.kitchen.tap("onlyMenu")
+        shoot("kitchen-change-phone", Screen.Kitchen, width = 390, height = 1900)
+        shoot("kitchen-change", Screen.Kitchen, height = 1300)
+
+        // A later short shift opens with a board that runs, and shows its steps when the player asks.
+        game.kitchen.choose(Rush.LookingBack)
+        shoot("kitchen-hint-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.hint(true)
+        shoot("kitchen-hinted-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.load(Blueprint.FIRST)
 
         // The lunch rush, and the stations an empty place offers in it.
         game.kitchen.choose(Rush.Lunch)

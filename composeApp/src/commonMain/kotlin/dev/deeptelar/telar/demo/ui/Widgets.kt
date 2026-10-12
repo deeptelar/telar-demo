@@ -39,9 +39,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
@@ -237,6 +240,24 @@ fun Modifier.dotGrid(color: Color, spacing: Dp = 14.dp): Modifier = drawBehind {
 @Composable
 fun pulse(low: Float = 0.25f, periodMillis: Int = 700): State<Float> =
     rememberInfiniteTransition().animateFloat(1f, low, infiniteRepeatable(tween(periodMillis, easing = LinearEasing), RepeatMode.Reverse))
+
+/**
+ * A yellow line around what the player is asked to press next, which fades in and out. It is drawn
+ * outside the thing it is around, so it takes no room. [corner] is the roundness of that line, and
+ * without one it is as round as a button.
+ */
+@Composable
+fun Modifier.beckon(on: Boolean, corner: Dp? = null): Modifier {
+    if (!on) return this
+    val color = Theme.colors.yellow
+    val glow by pulse(low = 0.35f)
+    return drawBehind {
+        val out = 4.dp.toPx()
+        val around = Size(size.width + out * 2, size.height + out * 2)
+        val radius = corner?.toPx() ?: (around.height / 2)
+        drawRoundRect(color.copy(alpha = glow), Offset(-out, -out), around, CornerRadius(radius), style = Stroke(1.5.dp.toPx()))
+    }
+}
 
 /** Returns [text] one more character at a time, the way a game prints dialogue. */
 @Composable

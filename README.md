@@ -52,12 +52,30 @@ arrows between them.
 
 There are nine shifts. The first seven are short, four to eight orders each, and each brings one
 station that the shifts before it did not have and that it cannot be won without. The last two are
-the rushes, with every station on offer. No shift is locked, and the board stays when you move on,
-so a shift starts with the board that won the one before.
+the rushes, with every station on offer. No shift is locked.
+
+The first three shifts teach how a board is drawn, and each opens with a board that is drawn up to
+the one thing it teaches. Above the board is the next thing to press, one step at a time, and what
+it names blinks: a tile, an empty place, a station in the list, a button.
+
+| Shift | It opens with | You do |
+|---|---|---|
+| 1. First orders | The lookup, and the arrow from the rail to it | Draw one arrow, from the lookup to the kitchen |
+| 2. Wishes | The board that won shift 1 | Take the lookup off, put the reader in its place, draw its two arrows |
+| 3. Sorting | The sorter, the lookup and the reader | Decide where the yes arrow and the no arrow of the sorter go |
+
+The steps of shift 3 ask where the two arrows go and do not say. With the arrows the wrong way
+round the shift runs, the model reads the orders that need none, and the lookup gets the ones it
+cannot read. After that the game offers the steps that lead to the board that wins.
+
+Shifts 4 to 7 keep the board you come with when it can run in them, and open with a board that won
+the shift before when it cannot. "Show me the next step" turns the steps on there, and they lead
+from the board as it is to the nearest board that wins every medal of the shift. The two rushes
+have no steps: they are the puzzle.
 
 | Shift | New station | What it is about |
 |---|---|---|
-| 1. First orders | Menu lookup | Four pizzas from the menu. Placing a station and drawing its arrows. |
+| 1. First orders | Menu lookup | Four pizzas from the menu. Drawing an arrow. |
 | 2. Wishes | Reader | Guests want a pizza changed, which the lookup does not read. |
 | 3. Sorting | Sorter: only a menu pizza? | Most orders need no model. The first medal for few tokens. |
 | 4. The book | Reader with the book | Orders that only make sense with what was said before. |
@@ -85,8 +103,9 @@ and with what each station cost.
 
 The board is a Telar graph, and the game shows its code: a node for each station, an edge for each
 arrow, a conditional edge for each sorter. Every order is one run of that graph, from the rail
-(`START`) to the kitchen (`END`). A board that cannot run says why before the shift starts, and
-what the game does not check itself is reported by Telar when the graph is compiled.
+(`START`) to the kitchen (`END`). Where no step says what to press, a board that cannot run says
+why before the shift starts, and what the game does not check itself is reported by Telar when the
+graph is compiled.
 
 The orders of a shift are the same every time, and they are listed before it starts, with what
 the guests say later. Under each order is the way it takes across the board as you have drawn it.
@@ -197,7 +216,9 @@ and the Android app have no such limit.
 - `kitchen/`: the bonus stage: the kitchen as plain code and the fixed shift, from Telar's sample.
   `Blueprint.kt` is the board a player draws, `BoardShift.kt` turns it into the graph that runs a
   shift, `Lessons.kt` has the seven short shifts and `DinnerRush.kt` the second rush, and
-  `BoardText.kt` writes a board as the short text that a link carries
+  `BoardText.kt` writes a board as the short text that a link carries. `Sketch.kt` is the board
+  with what the player has in hand, one press at a time, and `Guide.kt` has the board each short
+  shift opens with and the steps that lead to one that wins it
 - `llm/`: the scripted model, and the Claude models on offer. The chat model interface, the agent
   loop and the clients come from `telar-agent`, `telar-anthropic` and `telar-openai`. Which service
   answers is decided in `ui/Settings.kt`
