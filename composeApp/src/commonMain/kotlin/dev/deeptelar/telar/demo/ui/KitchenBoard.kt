@@ -7,7 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,12 +39,13 @@ import kotlin.math.max
 // and between them are two columns of places for stations. Upright, which is how a narrow screen
 // shows it, the rail is at the top, the kitchen at the bottom, and the places are two rows between.
 private const val TILE_WIDTH = 84f
-private const val TILE_HEIGHT = 40f
+private const val TILE_HEIGHT = 48f
 private const val GAP_X = 38f
 private const val GAP_Y = 30f
 private const val GAP_UPRIGHT = 24f
 private const val MARGIN_X = 6f
 private const val MARGIN_Y = 18f
+private const val SPRITE_PIXEL = 2f
 private const val COLUMNS = 4
 private const val SLOT_COLUMNS = 2
 private const val ROWS = Blueprint.SLOTS / SLOT_COLUMNS
@@ -191,15 +192,19 @@ fun KitchenBoard(controller: KitchenController, modifier: Modifier = Modifier) {
                 }
 
                 val drawing = editing && controller.armed != null
-                PlaceTile("rail", "The rail", look(controller, Blueprint.RAIL, drawing = false), layout.tile(RAIL_CELL), terminal = true) { controller.tap(Blueprint.RAIL) }
-                PlaceTile("kitchen", "The kitchen", look(controller, Blueprint.KITCHEN, drawing), layout.tile(KITCHEN_CELL), terminal = true) { controller.tap(Blueprint.KITCHEN) }
+                PlaceTile("rail", "The rail", look(controller, Blueprint.RAIL, drawing = false), layout.tile(RAIL_CELL), Sprites.rail, terminal = true) {
+                    controller.tap(Blueprint.RAIL)
+                }
+                PlaceTile("kitchen", "The kitchen", look(controller, Blueprint.KITCHEN, drawing), layout.tile(KITCHEN_CELL), Sprites.chefHat, terminal = true) {
+                    controller.tap(Blueprint.KITCHEN)
+                }
                 repeat(Blueprint.SLOTS) { slot ->
                     val piece = board.at(slot)
                     if (piece == null) {
                         val look = if (editing && controller.picking == slot) PlaceLook.Selected else PlaceLook.Empty
                         PlaceTile(if (editing) "+" else "", "Place ${slot + 1}", look, layout.tile(slotCell(slot)), enabled = editing) { controller.tapSlot(slot) }
                     } else {
-                        PlaceTile(piece.kind.tile, "Station ${piece.id}", look(controller, piece.id, drawing), layout.tile(slotCell(slot)), sorts = piece.kind.sorts) {
+                        PlaceTile(piece.kind.tile, "Station ${piece.id}", look(controller, piece.id, drawing), layout.tile(slotCell(slot)), piece.kind.sprite) {
                             controller.tap(piece.id)
                         }
                     }
@@ -235,8 +240,8 @@ private fun PlaceTile(
     description: String,
     look: PlaceLook,
     tile: Rect,
+    sprite: Sprite? = null,
     terminal: Boolean = false,
-    sorts: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
@@ -258,7 +263,7 @@ private fun PlaceTile(
             PlaceLook.Target -> colors.yellow
             else -> colors.ink
         }
-    Row(
+    Column(
         Modifier
             .offset(tile.left.dp, tile.top.dp)
             .size(TILE_WIDTH.dp, TILE_HEIGHT.dp)
@@ -268,11 +273,11 @@ private fun PlaceTile(
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
             .semantics { contentDescription = description }
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
-        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // The picture says what kind of tile it is, and the word under it which one.
+        if (sprite != null) PixelArt(sprite, pixel = SPRITE_PIXEL.dp, onRed = look == PlaceLook.Running)
         Label(text, color = ink)
-        // A station that only decides which way an order goes has the mark of the routers of the stages.
-        if (sorts) RouterMark(ink)
     }
 }

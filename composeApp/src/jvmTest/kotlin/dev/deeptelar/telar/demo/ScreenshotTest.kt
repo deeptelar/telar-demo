@@ -152,7 +152,15 @@ class ScreenshotTest {
 
         // In the rush: four orders came in together.
         game.kitchen.start()
-        scope.advanceTimeBy(16_000)
+        // An order is on the board: the tile of the station that has it is red, and so its picture is drawn for red.
+        var waited = 0L
+        while (game.kitchen.at == null && waited < 16_000) {
+            scope.advanceTimeBy(40)
+            waited += 40
+        }
+        shoot("kitchen-reading-phone", Screen.Kitchen, width = 390, height = 1100)
+        shoot("kitchen-reading-light", Screen.Kitchen, height = 1300, dark = false)
+        scope.advanceTimeBy(16_000 - waited)
         shoot("kitchen-running", Screen.Kitchen, height = 2000)
         scope.advanceUntilIdle()
         shoot("kitchen-over", Screen.Kitchen, height = 2300)
