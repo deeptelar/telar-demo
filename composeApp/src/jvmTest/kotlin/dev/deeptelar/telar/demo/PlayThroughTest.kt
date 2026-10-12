@@ -126,9 +126,15 @@ class PlayThroughTest {
         onNodeWithText("IT USES").performScrollTo().assertIsDisplayed()
         onNodeWithText("START then lookup\nlookup then END").assertIsDisplayed()
         onNodeWithText("private fun Slip.lookUp(): Slip {", substring = true).assertExists()
+        onNodeWithText("val MENU: Map<String, List<Topping>> =", substring = true).assertExists()
+        // The lookup reads the menu, so the menu is there with what the lookup does.
+        onNodeWithContentDescription("The menu").performScrollTo().assertIsDisplayed()
+        onNodeWithText("margherita: tomato, mozzarella, basil").assertIsDisplayed()
+        onNodeWithText("veggie: tomato, mozzarella, mushrooms, peppers, onions").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithText("CODE OF THE RAIL").performScrollTo().assertIsDisplayed()
         onNodeWithText("ARROWS FROM START").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("The menu").assertDoesNotExist()
         onNodeWithText("START then lookup").assertIsDisplayed()
         // The kitchen says what it does, and its code is the arrows that end there.
         onNodeWithContentDescription("The kitchen").performScrollTo().performClick()

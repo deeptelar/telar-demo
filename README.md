@@ -110,7 +110,10 @@ The board is a Telar graph, and the game shows its code: a node for each station
 arrow, a conditional edge for each sorter. With a station selected, "Show the code" shows the code
 of that station alone, as a stage shows the code of the tile that was pressed: its node, the arrows
 that start or end at it, and the function its node calls, such as `lookUp()` or `read(model)`. That
-function is cut out of the source by the build, so it is the code that runs. On a phone a long line
+function is cut out of the source by the build, so it is the code that runs, and it is followed by
+what it names: the code of the lookup ends with `MENU`. A station that looks at the menu, which is
+the lookup, the sorter for menu pizzas and both readers, also shows the menu under what it does,
+each pizza with its toppings. On a phone a long line
 goes on in the next one. The rail and the kitchen can be pressed too: each says what it does, and
 its code is its arrows. Every order is one run of that graph, from the rail (`START`) to the
 kitchen (`END`). Where no step says what to press, a board that cannot run says
