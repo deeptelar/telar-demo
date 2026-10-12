@@ -1,11 +1,14 @@
 package dev.deeptelar.telar.demo
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -18,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
+import androidx.compose.ui.unit.dp
 import dev.deeptelar.telar.MemoryCheckpointer
 import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.storage.MemoryStore
@@ -33,6 +37,7 @@ import dev.deeptelar.telar.demo.ui.Settings
 import dev.deeptelar.telar.demo.ui.TELAR_LINK
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /** Clicks through the screens the way a player does, so the buttons are known to be wired up. */
 @OptIn(ExperimentalTestApi::class)
@@ -189,6 +194,46 @@ class PlayThroughTest {
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()
         onNodeWithText("KITCHEN RUSH").performScrollTo().performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
+    }
+
+    /** A phone shows one panel after the other, so the one that matters now has to be the one on the screen. */
+    @Test
+    fun onAPhoneTheShiftAndItsResultAreOnTheScreenWithoutScrolling() = runComposeUiTest {
+        lateinit var game: Game
+        setContent {
+            val scope = rememberCoroutineScope()
+            game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 1_000) }
+            Box(Modifier.requiredSize(390.dp, 700.dp)) {
+                PizzaTheme(dark = true) { GameScreens(game, Settings(), Screen.Kitchen, onNavigate = {}, onSave = {}) }
+            }
+        }
+
+        // The nine shifts are a row of numbers, and the board is drawn as on a wide screen.
+        onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertIsDisplayed()
+        onNodeWithText("Press a + to put a station on the board.").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Place 1").performScrollTo().performClick()
+        onNodeWithText("MENU LOOKUP").performScrollTo().performClick()
+        onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
+        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
+
+        // The player is at the button under the board. The shift that starts takes the screen.
+        onNodeWithText("START THE SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 30_000) { (game.kitchen.shift?.kitchen?.minute ?: 0) >= 8 }
+        assertTrue(game.kitchen.running)
+        onNodeWithText("THE SHIFT / FIRST ORDERS").assertIsDisplayed()
+        onNodeWithText("STOP").assertIsDisplayed()
+        onNodeWithContentDescription("Board: lookup to kitchen, rail to lookup").assertIsDisplayed()
+        onNodeWithContentDescription("Oven place 1", substring = true).assertIsDisplayed()
+        (1..4).forEach { order -> onNodeWithContentDescription("Order $order: ", substring = true).assertIsDisplayed() }
+        onNodeWithText("START THE SHIFT").assertDoesNotExist()
+
+        // When it is over, its result and the way to the next shift are there instead.
+        waitUntil(timeoutMillis = 30_000) { game.kitchen.finished }
+        waitForIdle()
+        onNodeWithContentDescription("Shift over").assertIsDisplayed()
+        onNodeWithText("NEXT SHIFT: WISHES").assertIsDisplayed()
+        onNodeWithText("START A NEW SHIFT").assertExists()
     }
 
     @Test
