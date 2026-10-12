@@ -78,13 +78,20 @@ enum class PieceKind(
     /** What a sorter says to [words], the order as the guest said it. */
     fun says(words: String): Boolean =
         when (this) {
-            ONLY_MENU -> ONLY_A_MENU_PIZZA.matches(words.trim())
-            LOOKS_BACK -> ABOUT_EARLIER.containsMatchIn(words)
+            ONLY_MENU -> isOnlyAMenuPizza(words)
+            LOOKS_BACK -> isAboutEarlier(words)
             else -> false
         }
 }
 
+/** `true` when the words of an order are the name of a menu pizza and nothing more, like "A margherita." */
+fun isOnlyAMenuPizza(words: String): Boolean = ONLY_A_MENU_PIZZA.matches(words.trim())
+
 private val ONLY_A_MENU_PIZZA = Regex("""(?:(?:an?|one)\s+)?(?:${MENU.keys.joinToString("|")})\.?""", RegexOption.IGNORE_CASE)
+
+/** `true` when the words of an order name a table, or say "same", "another" or "again". */
+fun isAboutEarlier(words: String): Boolean = ABOUT_EARLIER.containsMatchIn(words)
+
 private val ABOUT_EARLIER = Regex("""\b(?:table|same|another|again)\b""", RegexOption.IGNORE_CASE)
 
 /** A station on the board. [id] is the name of its node, and [slot] the place it stands on. */
@@ -133,6 +140,16 @@ data class Blueprint(
             RAIL -> "The rail"
             KITCHEN -> "The kitchen"
             else -> piece(id)?.kind?.title ?: id
+        }
+
+    /** What the tile of [id] does, for the player. */
+    fun job(id: String): String =
+        when (id) {
+            RAIL -> "Every order and every change of an order starts here."
+            KITCHEN ->
+                "Every ticket ends here. The kitchen makes and bakes what the ticket says, and never sees what the guest said. " +
+                    "Plain code, no tokens. An order that gets here without a ticket is not made."
+            else -> piece(id)?.kind?.job.orEmpty()
         }
 
     /** The ways out of [id]: none for the kitchen. */
@@ -246,7 +263,7 @@ data class Blueprint(
                 when (piece.kind) {
                     PieceKind.LOOKUP -> "slip -> slip.lookUp()"
                     PieceKind.READER -> "slip -> slip.read(model)"
-                    PieceKind.BOOK_READER -> "slip -> slip.read(model, book = true)"
+                    PieceKind.BOOK_READER -> "slip -> slip.read(model, withBook = true)"
                     PieceKind.EXPEDITER -> "slip -> slip.copy(rush = true)"
                     PieceKind.SECOND_OVEN -> "slip -> slip.copy(secondOven = true)"
                     else -> "it"
@@ -267,7 +284,7 @@ data class Blueprint(
                 Statement(
                     setOf(id, yes, no),
                     "conditionalEdge($id, targets = setOf(${setOf(ref(yes), ref(no)).joinToString()})) { slip ->\n" +
-                        "    if (slip.$question) ${ref(yes)} else ${ref(no)}\n" +
+                        "    if ($question(slip.words)) ${ref(yes)} else ${ref(no)}\n" +
                         "}",
                 )
             }
@@ -284,16 +301,11 @@ data class Blueprint(
             .joinToString("\n")
     }
 
-    /**
-     * The part of [code] that is about the tile of [id]: the node of a station, and after it the
-     * arrows that start or end there. The rail has no node, so it has only its arrow.
-     */
-    fun code(id: String): String {
-        val node = nodes().filter { id in it.tiles }.map { it.text }
-        val arrows = edges().filter { id in it.tiles }.map { it.text }
-        val none = listOf("// No arrow yet.").filter { arrows.isEmpty() }
-        return (node + listOf("").filter { node.isNotEmpty() } + arrows + none).joinToString("\n")
-    }
+    /** The statement of [code] that adds the node of the station [id], or `null` for the rail and the kitchen, which have none. */
+    fun nodeCode(id: String): String? = nodes().firstOrNull { id in it.tiles }?.text
+
+    /** The statements of [code] that draw the arrows that start or end at the tile of [id]. */
+    fun arrowCode(id: String): String = edges().filter { id in it.tiles }.joinToString("\n") { it.text }
 
     /** `true` when the kitchen of this board has a second oven. */
     val hasSecondOven: Boolean get() = pieces.any { it.kind == PieceKind.SECOND_OVEN }

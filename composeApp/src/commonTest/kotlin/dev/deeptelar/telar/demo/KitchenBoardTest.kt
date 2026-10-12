@@ -24,6 +24,7 @@ import dev.deeptelar.telar.demo.kitchen.Slip
 import dev.deeptelar.telar.demo.kitchen.Topping
 import dev.deeptelar.telar.demo.kitchen.Way
 import dev.deeptelar.telar.demo.kitchen.blueprintOf
+import dev.deeptelar.telar.demo.kitchen.codeOf
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.firstOrders
 import dev.deeptelar.telar.demo.kitchen.firstThingsFirst
@@ -39,6 +40,7 @@ import dev.deeptelar.telar.demo.kitchen.specialWishes
 import dev.deeptelar.telar.demo.kitchen.text
 import dev.deeptelar.telar.demo.kitchen.theBook
 import dev.deeptelar.telar.demo.kitchen.twoOvens
+import dev.deeptelar.telar.demo.kitchen.uses
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -193,16 +195,16 @@ class KitchenBoardTest {
                 val onlyMenu = node("onlyMenu") { it }
                 val lookup = node("lookup") { slip -> slip.lookUp() }
                 val looksBack = node("looksBack") { it }
-                val bookReader = node("bookReader") { slip -> slip.read(model, book = true) }
+                val bookReader = node("bookReader") { slip -> slip.read(model, withBook = true) }
                 val reader = node("reader") { slip -> slip.read(model) }
 
                 START then onlyMenu
                 conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
-                    if (slip.isOnlyAMenuPizza) lookup else looksBack
+                    if (isOnlyAMenuPizza(slip.words)) lookup else looksBack
                 }
                 lookup then END
                 conditionalEdge(looksBack, targets = setOf(bookReader, reader)) { slip ->
-                    if (slip.isAboutEarlier) bookReader else reader
+                    if (isAboutEarlier(slip.words)) bookReader else reader
                 }
                 bookReader then END
                 reader then END
@@ -215,44 +217,95 @@ class KitchenBoardTest {
     }
 
     @Test
-    fun theCodeOfATileIsItsNodeAndItsArrows() {
-        // A station: its node, and every arrow that starts or ends at it.
+    fun theCodeOfATileIsItsNodeItsArrowsAndWhatItsNodeCalls() {
+        fun parts(board: Blueprint, id: String?): Map<String, String> = board.codeOf(id).associate { it.title to it.code }
+
+        // A station: its node, every arrow that starts or ends at it, and the function its node calls, as it stands in the source.
+        val lookup = parts(BEST_BOARD, "lookup")
+        assertEquals(listOf("the node", "its arrows", "it uses"), lookup.keys.toList())
+        assertEquals("val lookup = node(\"lookup\") { slip -> slip.lookUp() }", lookup["the node"])
         assertEquals(
             """
-            val lookup = node("lookup") { slip -> slip.lookUp() }
-
             conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
-                if (slip.isOnlyAMenuPizza) lookup else looksBack
+                if (isOnlyAMenuPizza(slip.words)) lookup else looksBack
             }
             lookup then END
             """.trimIndent(),
-            BEST_BOARD.code("lookup"),
+            lookup["its arrows"],
         )
-        // A sorter has a conditional edge in place of two arrows.
+        val lookUp = lookup.getValue("it uses")
+        assertTrue(lookUp.startsWith("/** Writes the ticket of the first menu pizza that the order names."), lookUp)
+        assertTrue("private fun Slip.lookUp(): Slip {\n    val pizza = MENU.entries.firstOrNull { it.key in words.lowercase() }" in lookUp, lookUp)
+        assertTrue(lookUp.endsWith("\n}"), lookUp)
+
+        // A sorter has a conditional edge in place of two arrows, and its question with the pattern that answers it.
+        val sorter = parts(BEST_BOARD, "looksBack")
+        assertEquals("val looksBack = node(\"looksBack\") { it }", sorter["the node"])
         assertEquals(
             """
-            val looksBack = node("looksBack") { it }
-
             conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
-                if (slip.isOnlyAMenuPizza) lookup else looksBack
+                if (isOnlyAMenuPizza(slip.words)) lookup else looksBack
             }
             conditionalEdge(looksBack, targets = setOf(bookReader, reader)) { slip ->
-                if (slip.isAboutEarlier) bookReader else reader
+                if (isAboutEarlier(slip.words)) bookReader else reader
             }
             """.trimIndent(),
-            BEST_BOARD.code("looksBack"),
+            sorter["its arrows"],
         )
+        assertTrue("fun isAboutEarlier(words: String): Boolean = ABOUT_EARLIER.containsMatchIn(words)" in sorter.getValue("it uses"))
+        assertTrue("private val ABOUT_EARLIER = Regex(" in sorter.getValue("it uses"))
+        assertTrue("isOnlyAMenuPizza" !in sorter.getValue("it uses"))
+
+        // A reader: the one call to its model, and what that model is told to do.
+        val reader = parts(BEST_BOARD, "reader").getValue("it uses")
+        assertTrue("private suspend fun Slip.read(model: ChatModel, withBook: Boolean = false): Slip {" in reader, reader)
+        assertTrue("val READER_ALONE: String =" in reader && "READER_WITH_BOOK: String" !in reader, reader)
+        assertEquals("val bookReader = node(\"bookReader\") { slip -> slip.read(model, withBook = true) }", parts(BEST_BOARD, "bookReader")["the node"])
+        assertTrue("val READER_WITH_BOOK: String =" in parts(BEST_BOARD, "bookReader").getValue("it uses"))
+
         // The rail is START and has no node.
-        assertEquals("START then onlyMenu", BEST_BOARD.code(RAIL))
-        // A station without arrows says so, and a sorter has no conditional edge before both of its arrows are drawn.
+        assertEquals(mapOf("arrows from START" to "START then onlyMenu"), parts(BEST_BOARD, RAIL))
+        // The kitchen is END: every arrow that ends there.
+        assertEquals(mapOf("arrows to END" to "lookup then END\nbookReader then END\nreader then END"), parts(BEST_BOARD, KITCHEN))
+        // Without a tile it is the whole graph.
+        assertEquals(mapOf("the graph" to BEST_BOARD.code()), parts(BEST_BOARD, null))
+
+        // A tile without arrows says so, and a sorter has no conditional edge before both of its arrows are drawn.
         val begun = Blueprint().place(0, PieceKind.ONLY_MENU).place(1, PieceKind.READER).connect("onlyMenu", Exit.YES, "reader")
-        assertEquals("val reader = node(\"reader\") { slip -> slip.read(model) }\n\n// No arrow yet.", begun.code("reader"))
-        assertEquals("val onlyMenu = node(\"onlyMenu\") { it }\n\n// No arrow yet.", begun.code("onlyMenu"))
-        assertEquals("// No arrow yet.", begun.code(RAIL))
+        assertEquals("val reader = node(\"reader\") { slip -> slip.read(model) }", parts(begun, "reader")["the node"])
+        listOf("reader", "onlyMenu", RAIL, KITCHEN).forEach { assertEquals("// No arrow yet.", parts(begun, it).values.first { code -> !code.startsWith("val ") }, it) }
+
         // Every statement of a tile is one of the whole graph.
         BEST_BOARD.pieces.forEach { piece ->
-            BEST_BOARD.code(piece.id).split("\n\n").flatMap { it.lines() }.forEach { line -> assertTrue(line.trim() in BEST_BOARD.code().lines().map { it.trim() }, line) }
+            val tile = parts(BEST_BOARD, piece.id)
+            (tile.getValue("the node").lines() + tile.getValue("its arrows").lines()).forEach { line ->
+                assertTrue(line.trim() in BEST_BOARD.code().lines().map { it.trim() }, line)
+            }
         }
+    }
+
+    @Test
+    fun everyStationShowsTheFunctionItsNodeCalls() {
+        PieceKind.entries.forEach { kind ->
+            val board = Blueprint().place(0, kind)
+            val parts = board.codeOf(kind.word).associate { it.title to it.code }
+            val used = parts.getValue("it uses")
+            // Everything the station is said to use is found in the source by its name.
+            kind.uses.forEach { name -> assertTrue(Regex("(?:fun|val) (?:\\w+\\.)?$name\\b").containsMatchIn(used), "$kind: $name") }
+        }
+        // What the node of a station calls is what is shown for it.
+        assertTrue("slip.lookUp()" in Blueprint().place(0, PieceKind.LOOKUP).nodeCode("lookup").orEmpty())
+        assertTrue("slip.read(model" in Blueprint().place(0, PieceKind.READER).nodeCode("reader").orEmpty())
+        // The stations that stamp a slip show where the kitchen reads the stamp.
+        assertTrue("if (ticket.rush)" in Blueprint().place(0, PieceKind.EXPEDITER).codeOf("expediter").last().code)
+        assertTrue("order in secondOven" in Blueprint().place(0, PieceKind.SECOND_OVEN).codeOf("secondOven").last().code)
+    }
+
+    @Test
+    fun theRailAndTheKitchenSayWhatTheyDo() {
+        assertEquals("Every order and every change of an order starts here.", BEST_BOARD.job(RAIL))
+        assertTrue(BEST_BOARD.job(KITCHEN).startsWith("Every ticket ends here."))
+        assertEquals(PieceKind.LOOKUP.job, BEST_BOARD.job("lookup"))
     }
 
     @Test

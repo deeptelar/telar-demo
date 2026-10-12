@@ -269,9 +269,12 @@ class KitchenController(
     var earned: Set<Pair<Rush, Medal>> by earned
         private set
 
-    /** The tile the player pressed last: a station or the rail. Its arrows are shown and can be drawn. */
+    /** The tile the player pressed last: a station, the rail or the kitchen. What it does is shown, and its arrows can be drawn. */
     var selected: String? by mutableStateOf(null)
         private set
+
+    /** `true` while the code behind the board is shown under it: of the tile that is [selected], or of the whole graph. */
+    var showCode: Boolean by mutableStateOf(false)
 
     /** The way out of [selected] that the next tile the player presses is connected to. */
     var armed: Exit? by mutableStateOf(null)

@@ -113,21 +113,31 @@ class PlayThroughTest {
         onNodeWithText("STEP 3 OF 3").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Step: The board is ready. Start the shift.").assertIsDisplayed()
 
-        // The code is of the whole graph, and of a station alone when one is selected.
+        // The code is of the whole graph, and of a tile alone when one is selected: with the function its node calls.
         onNodeWithText("SHOW THE CODE").performScrollTo().performClick()
         onNodeWithText("CODE OF THE BOARD").performScrollTo().assertIsDisplayed()
         // The code scrolls sideways in its box, so the page is moved to the line under it.
-        onNodeWithText("This is the whole graph. Press a station to see its node and its arrows alone.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("This is the whole graph. Press a tile to see the code behind it.").performScrollTo().assertIsDisplayed()
         onNodeWithText("StateGraph<Slip> {", substring = true).assertIsDisplayed()
         onNodeWithContentDescription("Station lookup").performScrollTo().performClick()
         onNodeWithText("CODE OF THE LOOKUP TILE").performScrollTo().assertIsDisplayed()
-        onNodeWithText("Its node, and the arrows that start or end at it.").performScrollTo().assertIsDisplayed()
-        onNodeWithText("val lookup = node(\"lookup\") { slip -> slip.lookUp() }\n\nSTART then lookup\nlookup then END").assertIsDisplayed()
+        onNodeWithText("ITS ARROWS").performScrollTo().assertIsDisplayed()
+        onNodeWithText("val lookup = node(\"lookup\") { slip -> slip.lookUp() }").assertIsDisplayed()
+        onNodeWithText("IT USES").performScrollTo().assertIsDisplayed()
+        onNodeWithText("START then lookup\nlookup then END").assertIsDisplayed()
+        onNodeWithText("private fun Slip.lookUp(): Slip {", substring = true).assertExists()
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithText("CODE OF THE RAIL").performScrollTo().assertIsDisplayed()
-        onNodeWithText("Its node, and the arrows that start or end at it.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("ARROWS FROM START").performScrollTo().assertIsDisplayed()
         onNodeWithText("START then lookup").assertIsDisplayed()
-        onNodeWithContentDescription("The rail").performScrollTo().performClick()
+        // The kitchen says what it does, and its code is the arrows that end there.
+        onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
+        onNodeWithText("Every ticket ends here.", substring = true).performScrollTo().assertIsDisplayed()
+        onNodeWithText("CODE OF THE KITCHEN").performScrollTo().assertIsDisplayed()
+        onNodeWithText("ARROWS TO END").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("The code of the kitchen").performScrollTo().assertIsDisplayed()
+        onNodeWithText("lookup then END").assertIsDisplayed()
+        onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
         onNodeWithText("HIDE THE CODE").performScrollTo().performClick()
         onNodeWithContentDescription("The code of the board").assertDoesNotExist()
 

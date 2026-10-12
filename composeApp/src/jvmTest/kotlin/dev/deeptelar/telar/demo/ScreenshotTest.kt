@@ -138,10 +138,16 @@ class ScreenshotTest {
         shoot("kitchen-step-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.tap(Blueprint.KITCHEN)
         shoot("kitchen-ready-phone", Screen.Kitchen, width = 390, height = 1900)
-        // The code of the station that is selected, in place of the whole graph.
+        // The code behind the tile that is selected: its node, its arrows and the function its node calls.
+        game.kitchen.showCode = true
         game.kitchen.tap("lookup")
-        shoot("kitchen-selected-phone", Screen.Kitchen, width = 390, height = 1900)
-        game.kitchen.tap("lookup")
+        shoot("kitchen-selected-phone", Screen.Kitchen, width = 390, height = 2300)
+        shoot("kitchen-selected", Screen.Kitchen, height = 1500)
+        // The kitchen says what it does, and its code is the arrows that end there.
+        game.kitchen.tap(Blueprint.KITCHEN)
+        shoot("kitchen-end-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.tap(Blueprint.KITCHEN)
+        game.kitchen.showCode = false
         game.kitchen.start()
         scope.advanceTimeBy(6_000)
         shoot("kitchen-phone-running", Screen.Kitchen, width = 390, height = 2300)

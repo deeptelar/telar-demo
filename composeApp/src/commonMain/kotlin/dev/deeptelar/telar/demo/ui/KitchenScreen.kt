@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -47,7 +45,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Desk
@@ -64,6 +61,7 @@ import dev.deeptelar.telar.demo.kitchen.Touch
 import dev.deeptelar.telar.demo.kitchen.Way
 import dev.deeptelar.telar.demo.kitchen.arrow
 import dev.deeptelar.telar.demo.kitchen.called
+import dev.deeptelar.telar.demo.kitchen.codeOf
 import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.report
 import kotlinx.coroutines.flow.drop
@@ -380,29 +378,25 @@ private fun ShiftCard(controller: KitchenController, rush: Rush, modifier: Modif
 private fun Builder(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     val compact = LocalCompact.current
-    var showCode by remember { mutableStateOf(false) }
 
     @Composable
     fun code() {
-        PillButton(if (showCode) "Hide the code" else "Show the code", { showCode = !showCode }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
-        if (showCode) {
-            // The code of the tile that is selected, as a stage shows the code of the tile that was pressed. Without one, the whole graph.
+        PillButton(if (controller.showCode) "Hide the code" else "Show the code", { controller.showCode = !controller.showCode }, Modifier.offset(x = (-10).dp), emphasis = Emphasis.Quiet)
+        if (controller.showCode) {
+            // The code behind the tile that is selected, as a stage shows the code of the tile that was pressed. Without one, the whole graph.
             val board = controller.board
             val tile = controller.selected?.takeIf { !controller.running }
             val what = if (tile == null) "the board" else board.called(tile)
-            Label("code of $what", color = colors.ink)
-            Box(Modifier.fillMaxWidth().background(colors.panel, RoundedCornerShape(4.dp)).horizontalScroll(rememberScrollState()).padding(12.dp)) {
-                BasicText(
-                    if (tile == null) board.code() else board.code(tile),
-                    Modifier.semantics { contentDescription = "The code of $what" },
-                    Theme.body.copy(color = colors.ink, fontSize = 12.sp, lineHeight = 18.sp),
-                    softWrap = false,
-                )
+            val parts = remember(board, tile) { board.codeOf(tile) }
+            Column(Modifier.semantics { contentDescription = "The code of $what" }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("code of $what", color = colors.ink)
+                parts.forEach { part ->
+                    if (tile != null) Label(part.title)
+                    // On a phone a long line goes on in the next one: what a node calls is at the end of its line.
+                    Code(part.code, wrap = compact)
+                }
             }
-            Body(
-                if (tile == null) "This is the whole graph. Press a station to see its node and its arrows alone." else "Its node, and the arrows that start or end at it.",
-                color = colors.dim,
-            )
+            if (tile == null) Body("This is the whole graph. Press a tile to see the code behind it.", color = colors.dim)
         }
     }
 
@@ -548,7 +542,7 @@ private fun Hand(controller: KitchenController) {
                 board.sprite(selected)?.let { PixelArt(it, pixel = 2.dp) }
                 Label(board.title(selected), color = colors.ink)
             }
-            Body(board.piece(selected)?.kind?.job ?: "Every order and every change of an order starts here.", color = colors.dim)
+            Body(board.job(selected), color = colors.dim)
             board.exits(selected).forEach { exit ->
                 val target = board.target(selected, exit)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

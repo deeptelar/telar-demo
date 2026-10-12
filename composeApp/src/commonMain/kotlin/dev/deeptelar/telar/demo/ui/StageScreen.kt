@@ -144,9 +144,12 @@ private fun CodePanel(stage: Stage, node: String, onClose: () -> Unit) {
     }
 }
 
-/** A block of source code. It keeps its line breaks and scrolls sideways when a line is too long. */
+/**
+ * A block of source code. It keeps its line breaks and scrolls sideways when a line is too long.
+ * With [wrap] a long line goes on in the next one instead, which is easier to read on a narrow screen.
+ */
 @Composable
-private fun Code(code: String) {
+internal fun Code(code: String, modifier: Modifier = Modifier, wrap: Boolean = false) {
     val colors = Theme.colors
     val text = remember(code, colors) {
         buildAnnotatedString {
@@ -158,14 +161,14 @@ private fun Code(code: String) {
         }
     }
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .background(colors.panel, RoundedCornerShape(4.dp))
-            .horizontalScroll(rememberScrollState())
+            .then(if (wrap) Modifier else Modifier.horizontalScroll(rememberScrollState()))
             .padding(12.dp),
     ) {
         SelectionContainer {
-            BasicText(text, style = Theme.body.copy(color = colors.ink, fontSize = 13.sp, lineHeight = 19.sp), softWrap = false)
+            BasicText(text, style = Theme.body.copy(color = colors.ink, fontSize = 13.sp, lineHeight = 19.sp), softWrap = wrap)
         }
     }
 }

@@ -6,7 +6,7 @@ package dev.deeptelar.telar.demo.kitchen
  * The board with what the player has in hand. Every press returns the sketch after it, so that the
  * steps of a [Guide] can be followed without a screen.
  *
- * @property selected the tile the player pressed last: a station or the rail. Its arrows are shown and can be drawn.
+ * @property selected the tile the player pressed last: a station, the rail or the kitchen. What it does is shown, and its arrows can be drawn.
  * @property armed the way out of [selected] that the next tile the player presses is connected to.
  * @property picking the empty place the player is choosing a station for.
  */
@@ -38,8 +38,7 @@ data class Sketch(
             val connected = board.connect(from, exit, id)
             if (connected != board) return copy(board = connected, armed = connected.freeExit(from))
         }
-        // The kitchen has no arrows of its own to show.
-        return if (id == Blueprint.KITCHEN) this else select(id.takeIf { it != selected })
+        return select(id.takeIf { it != selected })
     }
 
     /** Arms a way out of the selected tile again, so that its arrow can be drawn somewhere else. */
