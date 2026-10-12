@@ -1,6 +1,7 @@
 package dev.deeptelar.telar.demo.ui
 
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,12 +12,16 @@ import dev.deeptelar.telar.agent.ChatModel
 import dev.deeptelar.telar.demo.kitchen.BOARD_STEPS
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.kitchen.BoardShift
+import dev.deeptelar.telar.demo.kitchen.Sketch
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Guide
 import dev.deeptelar.telar.demo.kitchen.Kitchen
+import dev.deeptelar.telar.demo.kitchen.Touch
 import dev.deeptelar.telar.demo.kitchen.Outcome
 import dev.deeptelar.telar.demo.kitchen.PieceKind
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
+import dev.deeptelar.telar.demo.kitchen.Step
 import dev.deeptelar.telar.demo.kitchen.dinnerRush
 import dev.deeptelar.telar.demo.kitchen.firstOrders
 import dev.deeptelar.telar.demo.kitchen.firstThingsFirst
@@ -72,6 +77,8 @@ class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift
  * every station on offer.
  *
  * @property orders the kitchen at the start of the shift.
+ * @property guide the board a short shift opens with and the steps that lead to one that wins it. `null` for a rush, which is free.
+ * @property guided `true` when the shift shows its steps without being asked: the first three, which teach how a board is drawn.
  * @property teaches the station that is new in a short shift. `null` for a rush.
  * @property cheap the tokens a shift has to stay under for [Medal.Cheap], where there is that medal.
  * @property small the most stations a board may have for [Medal.Small], where there is that medal.
@@ -80,29 +87,37 @@ enum class Rush(
     val title: String,
     val detail: String,
     val orders: () -> Kitchen,
+    val guide: Guide? = null,
+    val guided: Boolean = false,
     val teaches: PieceKind? = null,
     val cheap: Int? = null,
     val small: Int? = null,
 ) {
     Opening(
         "First orders",
-        "Four guests, four pizzas from the menu. Put the menu lookup on a place of the board. Then draw two arrows: from the rail to the " +
-            "lookup, and from the lookup to the kitchen.",
+        "Four guests, four pizzas from the menu. The lookup reads the name of a pizza and writes the ticket. It is on the board, and one " +
+            "arrow is missing.",
         ::firstOrders,
+        Guide.FIRST_ORDERS,
+        guided = true,
         teaches = PieceKind.LOOKUP,
     ),
     Wishes(
         "Wishes",
-        "Three of four guests want their pizza changed. The lookup reads the name of a pizza and nothing else. The reader is a model: it " +
-            "reads what the guest wants, for tokens and a minute an order.",
+        "Three of four guests want their pizza changed, and the lookup reads only the name of a pizza. The reader is a model: it reads " +
+            "what the guest wants, for tokens and a minute an order.",
         ::specialWishes,
+        Guide.WISHES,
+        guided = true,
         teaches = PieceKind.READER,
     ),
     Sorting(
         "Sorting",
-        "Four of six orders are a pizza of the menu and nothing more, and a model is wasted on them. A sorter sends an order one of two " +
-            "ways: it has an arrow for yes and an arrow for no.",
+        "Four of six orders are only a pizza of the menu, and a model is wasted on them. The sorter asks that of every order. Where its " +
+            "yes arrow and its no arrow go is yours to decide.",
         ::sorting,
+        Guide.SORTING,
+        guided = true,
         teaches = PieceKind.ONLY_MENU,
         cheap = 1_000,
     ),
@@ -111,6 +126,7 @@ enum class Rush(
         "Two orders only make sense with what was said before: one table wants what another had, and an allergy holds for every pizza of " +
             "its table. The reader with the book is told everything the guests said.",
         ::theBook,
+        Guide.THE_BOOK,
         teaches = PieceKind.BOOK_READER,
     ),
     LookingBack(
@@ -118,6 +134,7 @@ enum class Rush(
         "The book gets longer with every order, and every order that goes to its reader pays for all of it. The second sorter finds the " +
             "orders that look back. The others can go to a station that costs less.",
         ::lookingBack,
+        Guide.LOOKING_BACK,
         teaches = PieceKind.LOOKS_BACK,
         cheap = 2_800,
     ),
@@ -126,6 +143,7 @@ enum class Rush(
         "Four orders at once, and the two that came last are due first. The kitchen takes its tickets as they come. The expediter writes " +
             "on a ticket when it is due, and the kitchen takes the most urgent one first.",
         ::firstThingsFirst,
+        Guide.URGENT,
         teaches = PieceKind.EXPEDITER,
     ),
     TwoOvens(
@@ -133,6 +151,7 @@ enum class Rush(
         "Six orders at once, all due at the same minute, and the oven has two places. A second oven bakes the pizzas of the orders that " +
             "pass it.",
         ::twoOvens,
+        Guide.TWO_OVENS,
         teaches = PieceKind.SECOND_OVEN,
     ),
 
@@ -214,7 +233,7 @@ class KitchenController(
     private val minuteMillis: Long = if (realModel == null) 250 else 40,
     private val stepMillis: Long = 0,
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
-    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint()),
+    drawn: MutableState<Blueprint> = mutableStateOf(Guide.FIRST_ORDERS.start),
     chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
     earned: MutableState<Set<Pair<Rush, Medal>>> = mutableStateOf(emptySet()),
     private val onEarned: (Set<Pair<Rush, Medal>>) -> Unit = {},
@@ -251,6 +270,10 @@ class KitchenController(
 
     /** The empty place the player is choosing a station for. */
     var picking: Int? by mutableStateOf(null)
+        private set
+
+    /** `true` when the player asked for the steps of a shift that does not show them by itself. */
+    var hinting: Boolean by mutableStateOf(false)
         private set
 
     /** The most tokens the chefs of a shift may use together. */
@@ -292,6 +315,31 @@ class KitchenController(
 
     private var job: Job? = null
 
+    /** The board with what the player has in hand. */
+    private val sketch: Sketch get() = Sketch(board, selected, armed, picking)
+
+    /** `true` when the board as it is drawn is the one of the shift that just ended, so that nothing is left to say about starting it. */
+    private val wasPlayed: Boolean get() = finished && playing == board && playingRush == rush
+
+    /**
+     * What to press next, in a shift that shows its steps and in a short one the player asked for them in.
+     * `null` in a rush, while a shift runs, and when the board is drawn and was played.
+     */
+    val step: Step? by derivedStateOf {
+        val guide = rush.guide
+        if (guide == null || running || !(rush.guided || hinting)) {
+            null
+        } else {
+            guide.next(sketch, strict = hinting).takeUnless { it.touch == Touch.Start && wasPlayed }
+        }
+    }
+
+    /** `true` when the player can ask for the steps: no step is shown, and the board as it is drawn is not yet one they lead to. */
+    val canHint: Boolean by derivedStateOf {
+        val guide = rush.guide
+        guide != null && !running && !hinting && step == null && guide.next(sketch, strict = true).touch != Touch.Start
+    }
+
     /** The medals of the chosen shift, with whether each was won. */
     val goals: List<Pair<Goal, Boolean>> get() = medals(rush)
 
@@ -312,28 +360,34 @@ class KitchenController(
         }
     }
 
-    /** Chooses the orders of the next shift. The board stays, so that a shift starts with the board of the one before. */
+    /**
+     * Chooses the orders of the next shift. A shift that shows its steps opens with its own board.
+     * Any other keeps the board of the one before, and a short one opens with a board that won
+     * the shift before it when the board as it is drawn cannot run in it.
+     */
     fun choose(rush: Rush) {
-        if (running) return
+        if (running || rush == this.rush) return
         this.rush = rush
-        problems = check(board, rush)
+        hinting = false
         picking = null
+        problems = check(board, rush)
+        val start = rush.guide?.start
+        if (start != null && (rush.guided || problems.isNotEmpty())) load(start)
+    }
+
+    /** Shows the steps of a short shift that does not show them by itself, or puts them away. */
+    fun hint(on: Boolean) {
+        if (!running) hinting = on
     }
 
     /** The player pressed an empty place: the stations to choose from are offered for it. */
     fun tapSlot(slot: Int) {
-        if (running || board.at(slot) != null) return
-        picking = if (picking == slot) null else slot
-        selected = null
-        armed = null
+        if (!running) take(sketch.tapSlot(slot))
     }
 
     /** Puts a station of [kind] on the place the player pressed, and selects it so that its arrow can be drawn next. */
     fun put(kind: PieceKind) {
-        val slot = picking ?: return
-        if (running || kind !in rush.offers) return
-        draw(board.place(slot, kind))
-        select(board.at(slot)?.id)
+        if (!running && kind in rush.offers) take(sketch.put(kind))
     }
 
     /**
@@ -342,53 +396,38 @@ class KitchenController(
      * was selected already.
      */
     fun tap(id: String) {
-        if (running) return
-        val from = selected
-        val exit = armed
-        if (from != null && exit != null && id != from) {
-            val connected = board.connect(from, exit, id)
-            if (connected != board) {
-                draw(connected)
-                armed = board.freeExit(from)
-                return
-            }
-        }
-        // The kitchen has no arrows of its own to show.
-        if (id != Blueprint.KITCHEN) select(id.takeIf { it != selected })
+        if (!running) take(sketch.tap(id))
     }
 
     /** Arms a way out of the selected tile again, so that its arrow can be drawn somewhere else. */
     fun redraw(exit: Exit) {
-        val from = selected ?: return
-        if (running) return
-        draw(board.disconnect(from, exit))
-        armed = exit
+        if (!running) take(sketch.redraw(exit))
     }
 
     /** Takes the selected station off the board, with its arrows. */
     fun remove() {
-        val id = selected?.takeIf { board.piece(it) != null } ?: return
-        if (running) return
-        draw(board.remove(id))
-        select(null)
+        if (!running) take(sketch.remove())
     }
 
-    /** Replaces the board with [blueprint]: an empty one, or the board of an earlier shift. */
+    /** Replaces the board with [blueprint]: an empty one, the one a shift opens with, or the board of an earlier shift. */
     fun load(blueprint: Blueprint) {
-        if (running) return
-        draw(blueprint)
-        select(null)
+        if (!running) take(Sketch(blueprint))
     }
 
-    private fun select(id: String?) {
-        selected = id
-        armed = id?.let(board::freeExit)
-        picking = null
-    }
-
-    private fun draw(next: Blueprint) {
-        board = next
-        problems = check(next, rush)
+    private fun take(next: Sketch) {
+        val drawn = next.board != board
+        if (drawn) {
+            board = next.board
+            problems = check(next.board, rush)
+        }
+        selected = next.selected
+        armed = next.armed
+        picking = next.picking
+        // The last arrow of a board that is drawn by steps empties the hand: what is left is to start the shift.
+        if (drawn && step?.touch == Touch.Start) {
+            selected = null
+            armed = null
+        }
     }
 
     private fun check(board: Blueprint, rush: Rush): List<String> =
@@ -406,7 +445,7 @@ class KitchenController(
         if (running || problems.isNotEmpty()) return
         val drawn = board
         val orders = rush
-        select(null)
+        take(Sketch(drawn))
         running = true
         finished = false
         error = null

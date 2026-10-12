@@ -31,6 +31,7 @@ import dev.deeptelar.telar.demo.game.Ticket
 import dev.deeptelar.telar.demo.game.changesSince
 import dev.deeptelar.telar.demo.game.stages
 import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.Guide
 import dev.deeptelar.telar.demo.storage.KeyValueStore
 
 enum class Phase {
@@ -329,7 +330,7 @@ class Game(
     realModel: ChatModel? = null,
     modelLabel: String = "scripted",
     played: MutableState<List<PlayedShift>> = mutableStateOf(emptyList()),
-    drawn: MutableState<Blueprint> = mutableStateOf(Blueprint()),
+    drawn: MutableState<Blueprint> = mutableStateOf(Guide.FIRST_ORDERS.start),
     chosen: MutableState<Rush> = mutableStateOf(Rush.entries.first()),
 ) {
     var cleared: Set<Int> by mutableStateOf(emptySet())

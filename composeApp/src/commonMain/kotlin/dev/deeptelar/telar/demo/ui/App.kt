@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 import dev.deeptelar.telar.demo.game.stages
-import dev.deeptelar.telar.demo.kitchen.Blueprint
+import dev.deeptelar.telar.demo.kitchen.Guide
 import dev.deeptelar.telar.demo.storage.platformCheckpointer
 import dev.deeptelar.telar.demo.storage.platformStore
 
@@ -63,7 +63,7 @@ fun App() {
     val linked = remember { KitchenLink.of(pageFragment()) }
     var screen by remember { mutableStateOf(if (linked == null) Screen.Title else Screen.Kitchen) }
     val played = remember { mutableStateOf(emptyList<PlayedShift>()) }
-    val drawn = remember { mutableStateOf(linked?.board ?: Blueprint()) }
+    val drawn = remember { mutableStateOf(linked?.board ?: Guide.FIRST_ORDERS.start) }
     val chosen = remember { mutableStateOf(linked?.rush ?: Rush.entries.first()) }
     LaunchedEffect(Unit) { loaded = repository.load() }
 

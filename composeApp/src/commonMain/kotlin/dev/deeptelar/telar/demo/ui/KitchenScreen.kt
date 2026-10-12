@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,7 +59,10 @@ import dev.deeptelar.telar.demo.kitchen.Pizza
 import dev.deeptelar.telar.demo.kitchen.Place
 import dev.deeptelar.telar.demo.kitchen.Score
 import dev.deeptelar.telar.demo.kitchen.Service
+import dev.deeptelar.telar.demo.kitchen.Touch
 import dev.deeptelar.telar.demo.kitchen.Way
+import dev.deeptelar.telar.demo.kitchen.arrow
+import dev.deeptelar.telar.demo.kitchen.called
 import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.report
 import kotlinx.coroutines.flow.drop
@@ -403,10 +407,17 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
                 PillButton(
                     if (controller.shift == null) "Start the shift" else "Start a new shift",
                     controller::start,
+                    Modifier.beckon(controller.step?.touch == Touch.Start),
                     emphasis = Emphasis.Primary,
                     enabled = controller.problems.isEmpty(),
                 )
-                PillButton("Clear the board", { controller.load(Blueprint()) }, emphasis = Emphasis.Quiet)
+                // A shift that shows its steps goes back to the board it opened with, which is what its steps start from.
+                val opening = controller.rush.guide?.start?.takeIf { controller.rush.guided }
+                if (opening == null) {
+                    PillButton("Clear the board", { controller.load(Blueprint()) }, emphasis = Emphasis.Quiet)
+                } else {
+                    PillButton("Start over", { controller.load(opening) }, emphasis = Emphasis.Quiet)
+                }
             }
         }
     }
@@ -417,15 +428,19 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             rush.teaches?.let { PixelArt(it.sprite, pixel = 2.dp) }
             Label(
-                (if (compact) "" else "shift ${rush.number} of ${Rush.entries.size} / ") + (rush.teaches?.let { "new station: ${it.title}" } ?: "every station"),
+                // A narrow screen has no room for more than the name of a sorter.
+                (if (compact) "" else "shift ${rush.number} of ${Rush.entries.size} / ") +
+                    (rush.teaches?.let { (if (compact) "new: " else "new station: ") + it.title } ?: "every station"),
                 color = colors.red,
             )
         }
         Body(rush.detail, color = colors.dim)
         Box(Modifier.fillMaxWidth().height(1.dp).background(colors.line))
+        NextStep(controller)
         KitchenBoard(controller, Modifier.fillMaxWidth())
         Hand(controller)
-        controller.problems.forEach { problem -> Body(problem, color = colors.red) }
+        // A step says what to do about a board that cannot run yet. Without one, the board says what is wrong with it.
+        if (controller.step == null) controller.problems.forEach { problem -> Body(problem, color = colors.red) }
 
         if (compact) {
             // On a narrow screen the button that starts the shift is under the board, before what is seldom needed.
@@ -442,6 +457,39 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
     }
 }
 
+/**
+ * The step of a short shift, above the board it is about: what to press next, and how many steps
+ * there are. A short shift that does not show its steps by itself has a button here that asks for them.
+ */
+@Composable
+private fun NextStep(controller: KitchenController) {
+    val colors = Theme.colors
+    val step = controller.step
+    val guide = controller.rush.guide
+    if (step == null || guide == null) {
+        if (controller.canHint) Box { PillButton("Show me the next step", { controller.hint(true) }) }
+        return
+    }
+    val count =
+        when {
+            // The steps of the lesson are counted as long as the player is on them.
+            controller.rush.guided && !controller.hinting && step.left <= guide.steps -> "step ${guide.steps - step.left + 1} of ${guide.steps}"
+            step.left == 1 -> "last step"
+            else -> "next step / ${step.left - 1} more"
+        }
+    // A step takes two lines on a narrow screen. With room for both, the board under it stays where it is from step to step.
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 66.dp).semantics(mergeDescendants = true) { contentDescription = "Step: ${step.text}" },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Label(count, color = colors.yellow)
+            if (controller.hinting) Label("hide the steps", Modifier.clickable(role = Role.Button) { controller.hint(false) })
+        }
+        Body(step.text)
+    }
+}
+
 /** What the player can do next on the board: choose a station for a place, or draw the arrows of the tile that is selected. */
 @Composable
 private fun Hand(controller: KitchenController) {
@@ -449,6 +497,7 @@ private fun Hand(controller: KitchenController) {
     val board = controller.board
     val picking = controller.picking
     val selected = controller.selected
+    val touch = controller.step?.touch
     when {
         controller.running -> Body("The board cannot be changed while a shift runs.", color = colors.dim)
         picking != null -> {
@@ -456,7 +505,15 @@ private fun Hand(controller: KitchenController) {
             // A short shift offers the stations up to the one it teaches. A station that a board can have only once is not offered again.
             val teaches = controller.rush.teaches
             controller.rush.offers.filterNot { kind -> kind.once && board.pieces.any { it.kind == kind } }.forEach { kind ->
-                Choice(false, kind.title, if (kind == teaches) "New in this shift. ${kind.job}" else kind.job, onClick = { controller.put(kind) }, role = Role.Button) {
+                val asked = (touch as? Touch.Choose)?.kind == kind
+                Choice(
+                    asked,
+                    kind.title,
+                    if (kind == teaches) "New in this shift. ${kind.job}" else kind.job,
+                    onClick = { controller.put(kind) },
+                    Modifier.beckon(asked, corner = 4.dp),
+                    role = Role.Button,
+                ) {
                     PixelArt(kind.sprite, pixel = 2.dp)
                 }
             }
@@ -470,19 +527,23 @@ private fun Hand(controller: KitchenController) {
             board.exits(selected).forEach { exit ->
                 val target = board.target(selected, exit)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Label(if (exit == Exit.NEXT) "arrow to" else "${exit.word} goes to", Modifier.width(88.dp))
+                    val asked = Modifier.beckon((touch as? Touch.Redraw)?.exit == exit)
+                    Label(exit.arrow, Modifier.width(88.dp))
                     when {
                         controller.armed == exit -> Body("press the tile it goes to", color = colors.yellow)
                         target != null -> {
-                            Body(board.title(target))
-                            PillButton("Change", { controller.redraw(exit) }, emphasis = Emphasis.Quiet)
+                            // By the word on its tile, which is short enough to leave room for the button on a narrow screen.
+                            Body(board.called(target))
+                            PillButton("Change", { controller.redraw(exit) }, asked, emphasis = Emphasis.Quiet)
                         }
-                        else -> PillButton("Draw", { controller.redraw(exit) }, emphasis = Emphasis.Quiet)
+                        else -> PillButton("Draw", { controller.redraw(exit) }, asked, emphasis = Emphasis.Quiet)
                     }
                 }
             }
-            if (board.piece(selected) != null) PillButton("Remove the station", controller::remove)
+            if (board.piece(selected) != null) Box { PillButton("Remove the station", controller::remove, Modifier.beckon(touch == Touch.Remove)) }
         }
+        // A step says what to press next.
+        touch != null -> Unit
         // Nothing is selected: what to press next, as far as the board has got.
         board.pieces.isEmpty() -> Body("Press a + to put a station on the board.")
         board.target(Blueprint.RAIL, Exit.NEXT) == null -> Body("Press the rail, and then the station that gets every order first.")
