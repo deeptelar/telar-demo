@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -67,8 +68,10 @@ import dev.deeptelar.telar.demo.kitchen.arrow
 import dev.deeptelar.telar.demo.kitchen.called
 import dev.deeptelar.telar.demo.kitchen.codeOf
 import dev.deeptelar.telar.demo.kitchen.heard
+import dev.deeptelar.telar.demo.kitchen.misses
 import dev.deeptelar.telar.demo.kitchen.report
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 
 /**
  * The bonus stage: one shift of a pizzeria. The player draws how an order gets from the rail to the
@@ -142,13 +145,24 @@ private fun Narrow(controller: KitchenController, shift: BoardShift?, scroll: Sc
         Stations(controller, shift)
         return
     }
+    // Where the board is drawn. The steps are shown there, so the page moves to it when the result asks for them.
+    var builderTop by remember { mutableStateOf(0f) }
+    val lead = with(LocalDensity.current) { (PAGE_LEAD - PAGE_GAP).toPx() }
+    val scope = rememberCoroutineScope()
     if (shift != null) {
         controller.error?.let { error ->
             Panel("The shift stopped", Modifier.fillMaxWidth(), edge = Theme.colors.red) { Body(error, color = Theme.colors.red) }
         }
-        if (controller.finished) Result(controller, shift) else Meters(controller, shift)
+        if (controller.finished) {
+            Result(controller, shift) {
+                controller.hint(true)
+                if (scroll != null) scope.launch { scroll.animateScrollTo((builderTop + lead).toInt()) }
+            }
+        } else {
+            Meters(controller, shift)
+        }
     }
-    Builder(controller, Modifier.fillMaxWidth())
+    Builder(controller, Modifier.fillMaxWidth().onGloballyPositioned { builderTop = it.positionInParent().y })
     // A short shift is about its board. Its orders are shown with what became of them, and its medals with its result.
     val short = controller.rush.short
     if (shift != null) Rail(controller, shift) else if (!short) OrdersAhead(controller)
@@ -163,6 +177,12 @@ private fun Narrow(controller: KitchenController, shift: BoardShift?, scroll: Sc
 
 /** How far under the head of a narrow page the page is moved to: past the gap between two panels, less a margin above the panel. */
 private val PAGE_LEAD = 36.dp
+
+/** The gap between two panels of a page. */
+private val PAGE_GAP = 20.dp
+
+/** The most orders a result lists with what went wrong. The others are in the list of the orders. */
+private const val MISSES_SHOWN = 4
 
 /**
  * A running shift on a narrow screen, in one panel: the clock, the board with the order that is on
@@ -691,7 +711,7 @@ private fun ShiftPanels(controller: KitchenController, shift: BoardShift) {
     controller.error?.let { error ->
         Panel("The shift stopped", Modifier.fillMaxWidth(), edge = colors.red) { Body(error, color = colors.red) }
     }
-    if (controller.finished) Result(controller, shift)
+    if (controller.finished) Result(controller, shift) { controller.hint(true) }
     Meters(controller, shift)
     Stations(controller, shift)
     Floor(shift.kitchen, controller.running, ovens = if (controller.playing.hasSecondOven) 2 else 1)
@@ -901,9 +921,12 @@ private fun Log(shift: Service) {
 
 private const val LOG_LINES = 8
 
-/** How the shift went, in the lines that one shift is compared with another on. */
+/**
+ * How the shift went, in the lines that one shift is compared with another on. A shift that did not
+ * serve every order says which ones and why, and a short one offers its steps with [onSteps].
+ */
 @Composable
-private fun Result(controller: KitchenController, shift: BoardShift) {
+private fun Result(controller: KitchenController, shift: BoardShift, onSteps: () -> Unit) {
     val rush = controller.playingRush
     val played = PlayedShift(rush, controller.playing, controller.modelLabel, controller.scripted, shift)
     // A narrow screen has no room for the board in the title. It is drawn under the result.
@@ -911,6 +934,20 @@ private fun Result(controller: KitchenController, shift: BoardShift) {
     Panel(title, Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
         // What each station cost is in the panel of the stations.
         shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
+        // What went wrong is said here, with the result, and not only in the list of the orders further down.
+        val misses = remember(shift, controller.playing) { shift.misses(controller.playing) }
+        if (misses.isNotEmpty()) {
+            Column(Modifier.semantics { contentDescription = "What went wrong" }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("what went wrong", color = Theme.colors.red)
+                misses.take(MISSES_SHOWN).forEach { miss ->
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Body("#${miss.order.number}: ${miss.order.text}")
+                        Body(miss.why, color = Theme.colors.red)
+                    }
+                }
+                if (misses.size > MISSES_SHOWN) Body("And ${misses.size - MISSES_SHOWN} more, in the list of the orders.", color = Theme.colors.dim)
+            }
+        }
         // The medals of the shift, and which of them this board won.
         rush.goals.forEach { goal ->
             val won = goal.metBy(played)
@@ -931,6 +968,10 @@ private fun Result(controller: KitchenController, shift: BoardShift) {
         val next = rush.next
         if (played.right && next != null && controller.rush == rush) {
             Box { PillButton("Next shift: ${next.title}", { controller.choose(next) }, emphasis = Emphasis.Primary) }
+        }
+        // A short shift that went wrong leads to its steps, which are shown at the board.
+        if (!played.right && controller.rush == rush && controller.canHint) {
+            Box { PillButton("Show me the next step", onSteps, emphasis = Emphasis.Primary) }
         }
     }
 }

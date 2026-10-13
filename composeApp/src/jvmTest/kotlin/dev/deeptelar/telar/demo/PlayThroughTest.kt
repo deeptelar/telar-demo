@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -183,8 +184,14 @@ class PlayThroughTest {
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
         onNodeWithText("100 of 400").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Right medal: not won").performScrollTo().assertIsDisplayed()
+        // The result says which orders went wrong and why. The steps of this shift are shown already, so it offers none.
+        onNodeWithContentDescription("What went wrong").performScrollTo().assertIsDisplayed()
+        onNodeWithText("#2: A pepperoni with extra cheese.").performScrollTo().assertIsDisplayed()
+        onNodeWithText("The lookup tile wrote: tomato, mozzarella, pepperoni. The guest wanted: tomato, mozzarella, mozzarella, pepperoni.").assertIsDisplayed()
+        onNodeWithText("SHOW ME THE NEXT STEP").assertDoesNotExist()
         // The orders of the shift are there with what became of them.
         onNodeWithText("A pepperoni with extra cheese.").performScrollTo().assertIsDisplayed()
+        onAllNodesWithText("WRONG PIZZA").assertCountEquals(3)
         onNodeWithText("NEXT SHIFT: SORTING").assertDoesNotExist()
 
         // The lookup goes, and the station that is new in this shift takes its place.
@@ -307,6 +314,39 @@ class PlayThroughTest {
         onNodeWithContentDescription("Shift over").assertIsDisplayed()
         onNodeWithText("NEXT SHIFT: WISHES").assertIsDisplayed()
         onNodeWithText("START A NEW SHIFT").assertExists()
+    }
+
+    /** A shift that went wrong says why where the player is looking, and its button leads to the board with the first step. */
+    @Test
+    fun onAPhoneAShiftThatWentWrongSaysWhyAndLeadsToItsSteps() = runComposeUiTest {
+        lateinit var game: Game
+        setContent {
+            val scope = rememberCoroutineScope()
+            game = remember { Game(scriptedModel(), MemoryStore(), MemoryCheckpointer(), scope, workMillis = 0) }
+            Box(Modifier.requiredSize(390.dp, 700.dp)) {
+                PizzaTheme(dark = true) { GameScreens(game, Settings(), Screen.Kitchen, onNavigate = {}, onSave = {}) }
+            }
+        }
+
+        // The shift of the book opens with the board that won the one before, which runs and reads without the book.
+        onNodeWithContentDescription("Shift 4: The book, 0 of 1 medals").performScrollTo().performClick()
+        onNodeWithText("START THE SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 30_000) { game.kitchen.finished }
+        waitForIdle()
+
+        onNodeWithContentDescription("Shift over").assertIsDisplayed()
+        onNodeWithContentDescription("What went wrong").assertIsDisplayed()
+        onNodeWithText("#3: The same as table 1 had.").assertIsDisplayed()
+        onNodeWithText("The reader tile wrote no ticket: The order does not say which pizza is meant.").assertIsDisplayed()
+        onNodeWithText("The reader tile wrote a ticket with onions. Table 2 is allergic.").assertIsDisplayed()
+        onNodeWithText("NEXT SHIFT: LOOKING BACK").assertDoesNotExist()
+
+        // The button of the result is on the screen, and the step it asks for is too once it is pressed.
+        onAllNodesWithText("SHOW ME THE NEXT STEP").onFirst().assertIsDisplayed().performClick()
+        waitForIdle()
+        assertTrue(game.kitchen.hinting)
+        onNodeWithContentDescription("Step: Press the reader tile. This board does not need it.").assertIsDisplayed()
+        onNodeWithContentDescription("Station reader").assertIsDisplayed()
     }
 
     @Test
