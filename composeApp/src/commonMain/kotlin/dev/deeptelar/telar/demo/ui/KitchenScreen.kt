@@ -369,7 +369,8 @@ private fun ShiftCard(controller: KitchenController, rush: Rush, modifier: Modif
                 Label(rush.number.toString(), color = colors.red)
                 Label(rush.title, color = colors.ink)
             }
-            Label(rush.teaches?.let { "new: ${it.title}" } ?: "every station")
+            // The name of a sorter is long, and takes a second line where the card is narrow.
+            BasicText((rush.teaches?.let { "new: ${it.title}" } ?: "every station").uppercase(), style = Theme.label.copy(color = colors.dim))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             medals.forEach { (_, won) -> PixelArt(Sprites.medal, pixel = 2.dp, tint = if (won) Color.Unspecified else colors.line) }
@@ -430,7 +431,8 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
                 PillButton("Stop", controller::stop)
             } else {
                 PillButton(
-                    if (controller.shift == null) "Start the shift" else "Start a new shift",
+                    // "New" only after a shift of these orders: one of another shift is not shown here.
+                    if (controller.shift == null || controller.playingRush != controller.rush) "Start the shift" else "Start a new shift",
                     controller::start,
                     Modifier.beckon(controller.step?.touch == Touch.Start),
                     emphasis = Emphasis.Primary,
@@ -774,7 +776,11 @@ private fun Floor(kitchen: Kitchen, running: Boolean, ovens: Int) {
                 if (ovens > 1) Label("oven ${oven + 1}", Modifier.padding(start = 88.dp, top = 4.dp), color = colors.ink)
                 PixelOven(kitchen, lit = running, Modifier.fillMaxWidth().padding(start = 88.dp, top = 4.dp), oven)
             }
-            Label("baked after ${Kitchen.BAKED_AFTER} minutes, burnt after ${Kitchen.BURNT_AFTER}", Modifier.padding(start = 88.dp, bottom = 4.dp))
+            Body(
+                "Baked after ${Kitchen.BAKED_AFTER} minutes, burnt after ${Kitchen.BURNT_AFTER}.",
+                Modifier.padding(start = 88.dp, bottom = 4.dp),
+                color = colors.dim,
+            )
         }
         Area("pass", if (pass.isEmpty()) "nothing" else "${pass.size} out of the oven") {
             pass.forEach { PizzaRow(it, if (it.good) "baked" else "spoilt", if (it.good) colors.ink else colors.red) }
@@ -822,7 +828,7 @@ private fun Rail(controller: KitchenController, shift: BoardShift) {
     Panel("Orders", Modifier.fillMaxWidth(), trailing = { Label("${heard.size} of ${kitchen.orders.size} placed") }) {
         if (heard.isEmpty()) Body("No order yet.", color = colors.dim)
         heard.forEach { order ->
-            val (status, color) = order.status(kitchen.minute, colors)
+            val (status, color) = order.status(kitchen.minute, controller.finished, colors)
             val route = shift.routes[order.number]
             val ticket = shift.tickets[order.number]
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -857,9 +863,15 @@ private fun Rail(controller: KitchenController, shift: BoardShift) {
     }
 }
 
-private fun Order.status(minute: Int, colors: Palette): Pair<String, Color> =
+/** How an order stands at [minute]. Once the shift is [over], an order that is still open was not served. */
+private fun Order.status(minute: Int, over: Boolean, colors: Palette): Pair<String, Color> =
     when (outcome) {
-        Outcome.OPEN -> if (minute > dueAt) "overdue" to colors.red else "waiting" to colors.dim
+        Outcome.OPEN ->
+            when {
+                over -> "not served" to colors.red
+                minute > dueAt -> "overdue" to colors.red
+                else -> "waiting" to colors.dim
+            }
         Outcome.ON_TIME -> "served on time" to colors.ink
         Outcome.LATE -> "served late" to colors.yellow
         Outcome.WRONG -> "wrong pizza" to colors.red
@@ -893,7 +905,9 @@ private const val LOG_LINES = 8
 private fun Result(controller: KitchenController, shift: BoardShift) {
     val rush = controller.playingRush
     val played = PlayedShift(rush, controller.playing, controller.modelLabel, controller.scripted, shift)
-    Panel("Shift over / ${rush.title} / ${controller.playing.summary}", Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
+    // A narrow screen has no room for the board in the title. It is drawn under the result.
+    val title = if (LocalCompact.current) "Shift over / ${rush.title}" else "Shift over / ${rush.title} / ${controller.playing.summary}"
+    Panel(title, Modifier.fillMaxWidth().semantics { contentDescription = "Shift over" }, edge = Theme.colors.yellow) {
         // What each station cost is in the panel of the stations.
         shift.report().lines().filterNot { it.startsWith("stations") }.forEach { line -> Spec(line.substringBefore(' '), line.substringAfter(' ').trim()) }
         // The medals of the shift, and which of them this board won.

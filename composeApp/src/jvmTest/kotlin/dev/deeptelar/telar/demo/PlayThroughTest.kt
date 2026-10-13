@@ -177,7 +177,9 @@ class PlayThroughTest {
         onNodeWithText("STEP 1 OF 8").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Step: Press the lookup tile. This board does not need it.").assertIsDisplayed()
         onNodeWithText("A pepperoni with extra cheese.").assertDoesNotExist()
-        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        // No shift of these orders was played yet, so the button does not speak of a new one.
+        onNodeWithText("START A NEW SHIFT").assertDoesNotExist()
+        onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 2 }
         onNodeWithText("100 of 400").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Right medal: not won").performScrollTo().assertIsDisplayed()
@@ -243,7 +245,7 @@ class PlayThroughTest {
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithText("CHANGE").performScrollTo().performClick()
         onNodeWithContentDescription("Station secondOven").performScrollTo().performClick()
-        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 4 }
         onNodeWithContentDescription("Oven 2 place 1: empty").performScrollTo().assertIsDisplayed()
         onNodeWithText("4 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
