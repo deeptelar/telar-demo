@@ -54,10 +54,11 @@ There are nine shifts. The first seven are short, four to eight orders each, and
 station that the shifts before it did not have and that it cannot be won without. The last two are
 the rushes, with every station on offer. No shift is locked.
 
-The stage opens with the list of the shifts, each with the station it brings and its medals.
-Pressing one goes into it, and the list is put away, as the stage select is when a stage is played.
-A short shift then shows its board and little else: its orders come with what became of them when
-the shift is over, and its medals come with its result.
+The stage opens with the list of the shifts, each with the station it brings and its medals, and
+with how many of the fifteen medals you have. Pressing one goes into it, and the list is put away,
+as the stage select is when a stage is played. A short shift then shows its board and little else:
+its orders come with what became of them when the shift is over, and its medals come with its
+result. The result of the last shift says that it was the last, and leads back to the list.
 
 The first three shifts teach how a board is drawn, and each opens with a board that is drawn up to
 the one thing it teaches. Above the board is the next thing to press, one step at a time, and what
@@ -73,10 +74,12 @@ The steps of shift 3 ask where the two arrows go and do not say. With the arrows
 round the shift runs, the model reads the orders that need none, and the lookup gets the ones it
 cannot read. After that the game offers the steps that lead to the board that wins.
 
-Shifts 4 to 7 keep the board you come with when it can run in them, and open with a board that won
-the shift before when it cannot. "Show me the next step" turns the steps on there, and they lead
-from the board as it is to the nearest board that wins every medal of the shift. The two rushes
-have no steps: they are the puzzle.
+Shifts 4 to 7 open with a board that runs and lacks the station they bring. For shifts 4 and 5
+that is the board that won the shift before. Shifts 6 and 7 are about the oven and have only pizzas
+of the menu, so they open with the lookup between the rail and the kitchen. "Show me the next step"
+turns the steps on there, and they lead from the board as it is to the nearest board that wins
+every medal of the shift. The two rushes have no steps and open with an empty board: they are the
+puzzle. Only the board of the other rush is kept, because it is one you drew.
 
 | Shift | New station | What it is about |
 |---|---|---|
@@ -126,8 +129,12 @@ Only the sorters decide that way, and they are plain code, so the game knows it 
 model.
 
 After a shift every order shows the way it took and the ticket it got, so you can see which
-station failed it. While the shift runs, the oven shows its places in pixels: a fire under each
-pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
+station failed it. The result itself names the orders that went wrong, each with what happened:
+the ticket and the station that wrote it, the minute it was served, or why it got no ticket. In a
+short shift it offers the steps there. While the shift runs, the oven shows its places in pixels: a
+fire under each pizza, and a bar that fills until the pizza is baked, and then until it is burnt.
+"Skip to the end" runs the rest of the shift without the pauses that let it be watched, for when
+you try one board after another.
 
 Every shift has a medal for serving every order right and on time. Shifts 3 and 5 have a second
 one for few tokens, and each rush has three, which no board wins together:
@@ -143,12 +150,13 @@ is the small board, and it pays for the whole book every time. The cheap board s
 that a model reads only the ones that need it, and sorting takes stations. In the dinner rush the
 six places are the puzzle as well: every order on time needs the expediter and the second oven, and
 the sorters have to fit in what is left. The result of a shift shows which of its medals the board
-won. In the rushes a panel of the medals shows your best for each, and the shifts you played are
-listed side by side. The medals you won are kept between sessions, with the
+won. In the rushes a panel of the medals shows your best for each, and the shifts you played with
+the same orders are listed side by side. The medals you won are kept between sessions, with the
 cleared stages.
 
-A board fits in a link. "Copy a link to this board" gives an address that opens the stage with that
-shift chosen and that board drawn, and after a shift the result can be copied with it, to post:
+A board fits in a link. In a rush, "Copy a link to this board" gives an address that opens the
+stage with that shift chosen and that board drawn, and after any shift the result can be copied
+with it, to post:
 
 ```
 Pixel Pizza, dinner rush: 1200 of 1200 points for 3,564 tokens on 5 stations. Can you beat this board?
@@ -156,8 +164,10 @@ https://deeptelar.github.io/telar-demo/#kitchen=dinner.plxbo-413k0k2
 ```
 
 On a phone the board stands upright, with the rail at the top and the kitchen at the bottom, and the
-page shows one thing at a time. While a shift runs that is one panel with the clock, the board, the
-oven and a tile for every order, and when it is over the result takes its place.
+page shows one thing at a time. When a shift opens that is the whole board with its step, on the
+first screen: a shift is described in a line or two there, and a station says what it does when it
+is pressed. While a shift runs it is one panel with the clock, the board, the oven and a tile for
+every order, and when it is over the result takes its place.
 
 Without a key the readers are scripted: the one with the book is always right, and the one without
 it cannot know what it was not told. Their token counts are a guess from the length of the text,
