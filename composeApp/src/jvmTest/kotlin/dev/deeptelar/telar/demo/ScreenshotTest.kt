@@ -179,6 +179,12 @@ class ScreenshotTest {
         shoot("kitchen-change-phone", Screen.Kitchen, width = 390, height = 1900)
         shoot("kitchen-change", Screen.Kitchen, height = 1300)
 
+        // A shift that went wrong: the result names the orders and says why, and offers the steps.
+        game.kitchen.choose(Rush.Book)
+        game.kitchen.start()
+        scope.advanceUntilIdle()
+        shoot("kitchen-wrong-phone", Screen.Kitchen, width = 390, height = 1900)
+
         // A later short shift opens with a board that runs, and shows its steps when the player asks.
         game.kitchen.choose(Rush.LookingBack)
         shoot("kitchen-hint-phone", Screen.Kitchen, width = 390, height = 1900)
