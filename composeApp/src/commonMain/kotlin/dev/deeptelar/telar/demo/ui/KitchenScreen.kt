@@ -465,7 +465,8 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
         KitchenBoard(controller, Modifier.fillMaxWidth())
         Hand(controller)
         // A step says what to do about a board that cannot run yet. Without one, the board says what is wrong with it.
-        if (controller.step == null) controller.problems.forEach { problem -> Body(problem, color = colors.red) }
+        // An empty board has nothing wrong with it yet: the line above says where to begin.
+        if (controller.step == null && controller.board.pieces.isNotEmpty()) controller.problems.forEach { problem -> Body(problem, color = colors.red) }
 
         if (compact) {
             // On a narrow screen the button that starts the shift is under the board, before what is seldom needed.

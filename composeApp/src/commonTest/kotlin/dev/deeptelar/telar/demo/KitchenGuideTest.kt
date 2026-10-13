@@ -237,7 +237,7 @@ class KitchenGuideTest {
             val guide = assertNotNull(rush.guide)
             assertFalse(rush.guided, rush.title)
 
-            // The board of the first shift cannot run here with what it lacks, so the shift opens with its own.
+            // The shift opens with its own board, which runs.
             kitchen.choose(Rush.Opening)
             kitchen.choose(rush)
             assertEquals(guide.start, kitchen.board, rush.title)
@@ -276,16 +276,17 @@ class KitchenGuideTest {
     fun theStepsLeadToTheBoardThatIsNearest() = runTest {
         val kitchen = kitchen()
 
-        // A player who served the book shift with one reader keeps that board in the next one that needs no model.
+        // A short shift opens with its own board, whatever the player drew in the one before.
         kitchen.choose(Rush.Book)
         kitchen.load(Guide.through(PieceKind.BOOK_READER))
         kitchen.choose(Rush.LookingBack)
-        assertEquals(Guide.through(PieceKind.BOOK_READER), kitchen.board)
+        assertEquals(Guide.LOOKING_BACK.start, kitchen.board)
 
-        // In the shift of the expediter the nearest board that wins is the lookup behind the expediter, not the six stations.
-        kitchen.load(Guide.through(PieceKind.LOOKUP))
+        // Every order of the shift of the expediter is a pizza of the menu, so it opens with the lookup alone, not with
+        // the five stations that read. The nearest board that wins is the lookup behind the expediter.
         kitchen.choose(Rush.Urgent)
         assertEquals(Guide.through(PieceKind.LOOKUP), kitchen.board)
+        assertEquals(Guide.through(PieceKind.LOOKUP), Guide.TWO_OVENS.start)
         kitchen.hint(true)
         val said = kitchen.followAll()
         assertEquals(
@@ -320,12 +321,18 @@ class KitchenGuideTest {
         kitchen.choose(Rush.Opening)
         assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
 
-        // A rush keeps every board, and says what is wrong with it.
+        // A rush opens with an empty board: the board of a short shift is not carried into it.
         kitchen.choose(Rush.Lunch)
-        assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
+        assertEquals(Blueprint(), kitchen.board)
         assertEquals(1, kitchen.problems.size)
         assertNull(kitchen.step)
         assertFalse(kitchen.canHint)
+        // The board the player draws there is their own, and the other rush keeps it.
+        kitchen.load(Guide.through(PieceKind.BOOK_READER))
+        kitchen.choose(Rush.Dinner)
+        assertEquals(Guide.through(PieceKind.BOOK_READER), kitchen.board)
+        assertEquals(emptyList(), kitchen.problems)
+        kitchen.choose(Rush.Opening)
 
         // The stage opens at the list of its shifts. A shift is entered from there, and left again unless it runs.
         assertFalse(kitchen.inShift)

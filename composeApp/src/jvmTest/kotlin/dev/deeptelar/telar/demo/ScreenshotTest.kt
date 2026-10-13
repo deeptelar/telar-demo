@@ -184,10 +184,11 @@ class ScreenshotTest {
         shoot("kitchen-hint-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.hint(true)
         shoot("kitchen-hinted-phone", Screen.Kitchen, width = 390, height = 1900)
-        game.kitchen.load(Blueprint.FIRST)
 
-        // The lunch rush, and the stations an empty place offers in it.
+        // The lunch rush opens with an empty board. Here it has the lookup, and an empty place offers every station.
         game.kitchen.choose(Rush.Lunch)
+        shoot("kitchen-lunch-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.load(Blueprint.FIRST)
         shoot("kitchen-lunch", Screen.Kitchen, height = 2100)
         game.kitchen.tapSlot(3)
         shoot("kitchen-picking", Screen.Kitchen, height = 1500)

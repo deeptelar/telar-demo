@@ -355,8 +355,10 @@ class KitchenRushTest {
         assertEquals(listOf("Reader comes in a later shift. Take it off the board, or choose that shift."), kitchen.problems)
         kitchen.start()
         assertFalse(kitchen.running)
-        // A rush has every station and keeps the board. The first shift opens with its own again.
+        // A rush has every station, and opens with an empty board. The first shift opens with its own again.
         kitchen.choose(Rush.Lunch)
+        assertEquals(Blueprint(), kitchen.board)
+        kitchen.load(boardWith(PieceKind.READER))
         assertEquals(emptyList(), kitchen.problems)
         kitchen.choose(Rush.Opening)
         assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)

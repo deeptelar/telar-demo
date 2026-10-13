@@ -77,7 +77,7 @@ class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift
  * every station on offer.
  *
  * @property orders the kitchen at the start of the shift.
- * @property guide the board a short shift opens with and the steps that lead to one that wins it. `null` for a rush, which is free.
+ * @property guide the board a short shift opens with and the steps that lead to one that wins it. `null` for a rush, which is free and opens empty.
  * @property guided `true` when the shift shows its steps without being asked: the first three, which teach how a board is drawn.
  * @property teaches the station that is new in a short shift. `null` for a rush.
  * @property cheap the tokens a shift has to stay under for [Medal.Cheap], where there is that medal.
@@ -373,18 +373,22 @@ class KitchenController(
     }
 
     /**
-     * Chooses the orders of the next shift. A shift that shows its steps opens with its own board.
-     * Any other keeps the board of the one before, and a short one opens with a board that won
-     * the shift before it when the board as it is drawn cannot run in it.
+     * Chooses the orders of the next shift. A short shift opens with its own board, which is the one
+     * its steps start from. A rush opens with an empty board, because the board the short shifts
+     * lead to wins it as it is. Only the board of the other rush is kept: it is the player's own.
      */
     fun choose(rush: Rush) {
         if (running || rush == this.rush) return
+        val before = this.rush
         this.rush = rush
         hinting = false
-        picking = null
-        problems = check(board, rush)
         val start = rush.guide?.start
-        if (start != null && (rush.guided || problems.isNotEmpty())) load(start)
+        when {
+            start != null -> load(start)
+            before.guide != null -> load(Blueprint())
+            else -> load(board)
+        }
+        problems = check(board, rush)
     }
 
     /** Goes into [rush] from the list of the shifts. */
