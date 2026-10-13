@@ -81,6 +81,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun KitchenScreen(controller: KitchenController, scroll: ScrollState? = null, onStages: () -> Unit) {
     val compact = LocalCompact.current
+    // The list of the shifts and a shift are two pages, and each opens at its top.
+    if (scroll != null) LaunchedEffect(scroll, controller.inShift) { scroll.scrollTo(0) }
     if (!controller.inShift) {
         ShiftSelect(controller, onStages)
         return
@@ -349,6 +351,16 @@ private fun ShiftSelect(controller: KitchenController, onStages: () -> Unit) {
             Modifier.widthIn(max = 720.dp),
             color = Theme.colors.dim,
         )
+        // Where the player stands in the whole stage: every shift has a medal for serving it, and some have more.
+        val won = controller.won
+        Row(
+            Modifier.semantics(mergeDescendants = true) { contentDescription = "$won of ${KitchenController.MEDALS} medals" },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PixelArt(Sprites.medal, pixel = 2.dp, tint = if (won > 0) Color.Unspecified else Theme.colors.line)
+            Label("$won of ${KitchenController.MEDALS} medals", color = if (won > 0) Theme.colors.yellow else Theme.colors.dim)
+        }
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns =
@@ -983,6 +995,21 @@ private fun Result(controller: KitchenController, shift: BoardShift, onSteps: ()
         val next = rush.next
         if (played.right && next != null && controller.rush == rush) {
             Box { PillButton("Next shift: ${next.title}", { controller.choose(next) }, emphasis = Emphasis.Primary) }
+        }
+        // After the last shift there is no next one. Its result says where the player stands, and leads back to the list.
+        if (played.right && next == null && controller.rush == rush) {
+            val won = controller.won
+            Column(Modifier.semantics { contentDescription = "The last shift" }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Label("that was the last shift", color = Theme.colors.yellow)
+                Body(
+                    if (won == KitchenController.MEDALS) {
+                        "Every order of every shift is served, and every medal is yours. The kitchen is the graph you drew."
+                    } else {
+                        "The dinner rush is served. You have $won of ${KitchenController.MEDALS} medals, and the list of the shifts shows which are still open."
+                    },
+                )
+                Box { PillButton("All shifts", controller::leave, emphasis = Emphasis.Primary) }
+            }
         }
         // A short shift that went wrong leads to its steps, which are shown at the board.
         if (!played.right && controller.rush == rush && controller.canHint) {

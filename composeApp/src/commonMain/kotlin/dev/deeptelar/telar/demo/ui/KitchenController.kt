@@ -364,6 +364,9 @@ class KitchenController(
         guide != null && !running && !hinting && step == null && guide.next(sketch, strict = true).touch != Touch.Start
     }
 
+    /** How many medals the player has won, of the [MEDALS] there are. */
+    val won: Int get() = earned.size
+
     /** The medals of the chosen shift, with whether each was won. */
     val goals: List<Pair<Goal, Boolean>> get() = medals(rush)
 
@@ -560,6 +563,9 @@ class KitchenController(
     }
 
     companion object {
+        /** The medals of all the shifts together. */
+        val MEDALS: Int = Rush.entries.sumOf { it.goals.size }
+
         const val DEFAULT_BUDGET = 150_000
         const val MAX_BUDGET = 2_000_000
     }

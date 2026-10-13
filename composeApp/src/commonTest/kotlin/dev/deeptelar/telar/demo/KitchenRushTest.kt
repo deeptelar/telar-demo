@@ -397,6 +397,9 @@ class KitchenRushTest {
         }
         assertEquals(7, kitchen.history.size)
         assertEquals(9, kitchen.earned.size)
+        // The list of the shifts says how many of all the medals that is.
+        assertEquals(9, kitchen.won)
+        assertEquals(15, KitchenController.MEDALS)
         assertEquals(kitchen.earned, saved.last())
         assertEquals(7, saved.size)
         assertEquals(listOf(true, true), kitchen.medals(Rush.Sorting).map { it.second })

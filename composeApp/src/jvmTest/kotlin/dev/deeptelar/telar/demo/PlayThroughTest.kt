@@ -89,6 +89,7 @@ class PlayThroughTest {
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()
         // The stage opens with the list of its shifts. Pressing one goes into it, and the list is put away.
         onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("0 of 15 medals").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").performScrollTo().performClick()
         assertTrue(game.kitchen.inShift)
         onNodeWithContentDescription("Shift 9: Dinner rush, 0 of 3 medals").assertDoesNotExist()
@@ -268,9 +269,21 @@ class PlayThroughTest {
         onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
         assertEquals("oven 2 + lookup", game.kitchen.board.summary)
         assertEquals(emptyList(), game.kitchen.problems)
+        onNodeWithContentDescription("The last shift").assertDoesNotExist()
+
+        // A board that serves the last shift ends the stage: its result says how many medals there are, and leads to the list.
+        game.kitchen.load(DINNER_BOARD)
+        onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
+        waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 5 }
+        onNodeWithText("1200 of 1200").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("The last shift").performScrollTo().assertIsDisplayed()
+        onNodeWithText("The dinner rush is served. You have 4 of 15 medals, and the list of the shifts shows which are still open.").assertIsDisplayed()
+        onNodeWithText("ALL SHIFTS").performScrollTo().performClick()
+        assertFalse(game.kitchen.inShift)
+        onNodeWithContentDescription("4 of 15 medals").performScrollTo().assertIsDisplayed()
+        onNodeWithContentDescription("Shift 9: Dinner rush, 2 of 3 medals, chosen").performScrollTo().assertIsDisplayed()
 
         // The stage select screen leads here too.
-        onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
         onNodeWithText("< ALL STAGES").performScrollTo().performClick()
         onNodeWithText("KITCHEN RUSH").performScrollTo().performClick()
         onNodeWithContentDescription("Kitchen rush").assertIsDisplayed()

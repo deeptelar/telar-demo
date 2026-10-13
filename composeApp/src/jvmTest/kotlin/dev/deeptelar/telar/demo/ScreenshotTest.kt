@@ -224,6 +224,10 @@ class ScreenshotTest {
         shoot("kitchen-dinner-phone", Screen.Kitchen, width = 390, height = 3600)
         scope.advanceUntilIdle()
         shoot("kitchen-dinner-over", Screen.Kitchen, height = 2300)
+        // The last shift is served: its result says how many medals there are, and the list of the shifts shows them.
+        shoot("kitchen-dinner-over-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.leave()
+        shoot("kitchen-medals-phone", Screen.Kitchen, width = 390, height = 1100)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */
