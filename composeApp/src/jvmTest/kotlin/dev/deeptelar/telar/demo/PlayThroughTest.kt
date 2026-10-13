@@ -325,7 +325,9 @@ class PlayThroughTest {
         (1..4).forEach { order -> onNodeWithContentDescription("Order $order: ", substring = true).assertIsDisplayed() }
         onNodeWithText("START THE SHIFT").assertDoesNotExist()
 
-        // When it is over, its result and the way to the next shift are there instead.
+        // The rest of the shift need not be watched. When it is over, its result and the way to the next shift are there instead.
+        onNodeWithText("SKIP TO THE END").assertIsDisplayed().performClick()
+        assertTrue(game.kitchen.hurried)
         waitUntil(timeoutMillis = 30_000) { game.kitchen.finished }
         waitForIdle()
         onNodeWithContentDescription("Shift over").assertIsDisplayed()

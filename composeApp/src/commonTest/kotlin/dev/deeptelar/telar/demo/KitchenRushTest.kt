@@ -483,6 +483,39 @@ class KitchenRushTest {
     }
 
     @Test
+    fun aShiftCanBeSkippedToItsEnd() = runTest {
+        val watched = kitchen()
+        watched.start()
+        advanceUntilIdle()
+
+        val kitchen = kitchen()
+        kitchen.hurry()
+        assertFalse(kitchen.hurried)
+        kitchen.start()
+        advanceTimeBy(2_000)
+        assertTrue(kitchen.running)
+        assertTrue(kitchen.shift!!.kitchen.minute < watched.shift!!.kitchen.minute)
+        kitchen.hurry()
+        assertTrue(kitchen.hurried)
+        // The pause that was going on ends with its slice, and no other follows.
+        advanceTimeBy(100)
+        assertTrue(kitchen.finished)
+        // It is the shift that was watched, and it is kept like one.
+        assertEquals(watched.shift!!.kitchen.score(), kitchen.shift!!.kitchen.score())
+        assertEquals(watched.shift!!.kitchen.minute, kitchen.shift!!.kitchen.minute)
+        assertEquals(watched.shift!!.spent, kitchen.shift!!.spent)
+        assertEquals(1, kitchen.history.size)
+
+        // The next shift is shown minute by minute again.
+        kitchen.start()
+        assertFalse(kitchen.hurried)
+        advanceTimeBy(2_000)
+        assertTrue(kitchen.running)
+        kitchen.stop()
+        advanceUntilIdle()
+    }
+
+    @Test
     fun aModelThatFailsEndsTheShiftAndSaysWhy() = runTest {
         val kitchen = kitchen(ChatModel { throw ChatModelException("The key is not valid.") }, minuteMillis = 0, label = "broken")
         assertFalse(kitchen.scripted)

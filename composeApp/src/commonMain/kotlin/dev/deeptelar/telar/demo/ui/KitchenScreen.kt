@@ -204,7 +204,18 @@ private fun Watch(controller: KitchenController, shift: BoardShift) {
     val score = kitchen.score()
     val orders = kitchen.orders.size - score.cancelled
     val ovens = if (controller.playing.hasSecondOven) 2 else 1
-    Panel("The shift / ${controller.playingRush.title}", Modifier.fillMaxWidth(), trailing = { Label("running", color = colors.red) }) {
+    Panel(
+        "The shift / ${controller.playingRush.title}",
+        Modifier.fillMaxWidth(),
+        // The way to the end of the shift is in the head of the panel, where it takes no room from the shift.
+        trailing = {
+            if (controller.hurried) {
+                Label("running", color = colors.red)
+            } else {
+                Label("skip to the end", Modifier.clickable(role = Role.Button, onClick = controller::hurry).padding(vertical = 6.dp), color = colors.ink)
+            }
+        },
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Meter("clock", "minute ${kitchen.minute} of ${kitchen.closesAt}", kitchen.minute.toFloat() / kitchen.closesAt, colors.ink)
@@ -468,6 +479,7 @@ private fun Builder(controller: KitchenController, modifier: Modifier = Modifier
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (controller.running) {
                 PillButton("Stop", controller::stop)
+                PillButton("Skip to the end", controller::hurry, emphasis = Emphasis.Quiet, enabled = !controller.hurried)
             } else {
                 PillButton(
                     // "New" only after a shift of these orders: one of another shift is not shown here.

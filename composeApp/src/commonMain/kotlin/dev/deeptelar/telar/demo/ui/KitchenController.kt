@@ -322,6 +322,10 @@ class KitchenController(
     var running: Boolean by mutableStateOf(false)
         private set
 
+    /** `true` when the player asked for the end of the shift that runs, so that the rest of it is not shown minute by minute. */
+    var hurried: Boolean by mutableStateOf(false)
+        private set
+
     /** `true` when [shift] ran to its end: the kitchen closed, every order was served, or the tokens were spent. */
     var finished: Boolean by mutableStateOf(false)
         private set
@@ -490,6 +494,7 @@ class KitchenController(
         val orders = rush
         take(Sketch(drawn))
         running = true
+        hurried = false
         finished = false
         error = null
         playing = drawn
@@ -518,6 +523,23 @@ class KitchenController(
         job?.cancel()
     }
 
+    /**
+     * Runs the rest of the shift without the pauses that let it be watched, for a player who tries
+     * board after board. The shift is the same one, and a real model still takes the time it takes.
+     */
+    fun hurry() {
+        if (running) hurried = true
+    }
+
+    /** Waits [millis], or as long as it takes the player to ask for the end of the shift. */
+    private suspend fun pause(millis: Long) {
+        var left = millis
+        while (left > 0 && !hurried) {
+            delay(minOf(left, PAUSE_SLICE))
+            left -= PAUSE_SLICE
+        }
+    }
+
     private fun keep(played: PlayedShift) {
         history = history + played
         val won = played.rush.goals.filter { it.metBy(played) }.map { played.rush to it.medal }.toSet() - earned
@@ -538,7 +560,7 @@ class KitchenController(
             is GraphEvent.SubgraphEvent -> (event.innermost as? GraphEvent.NodeStarted<*>)?.let { started ->
                 at = started.node
                 reading = event.state.slip?.order
-                delay(stepMillis)
+                pause(stepMillis)
             }
             is GraphEvent.NodeCompleted -> when (event.node) {
                 "board" -> {
@@ -547,7 +569,7 @@ class KitchenController(
                 }
                 "clock" -> {
                     // A minute of the kitchen takes a moment on the screen, so that the shift can be watched.
-                    delay((event.state.kitchen.minute - (shift?.kitchen?.minute ?: 0)).coerceAtLeast(0) * minuteMillis)
+                    pause((event.state.kitchen.minute - (shift?.kitchen?.minute ?: 0)).coerceAtLeast(0) * minuteMillis)
                     shift = event.state
                 }
             }
@@ -565,6 +587,9 @@ class KitchenController(
     companion object {
         /** The medals of all the shifts together. */
         val MEDALS: Int = Rush.entries.sumOf { it.goals.size }
+
+        /** How long a pause goes on at most before it looks whether the player asked for the end of the shift. */
+        private const val PAUSE_SLICE = 50L
 
         const val DEFAULT_BUDGET = 150_000
         const val MAX_BUDGET = 2_000_000
