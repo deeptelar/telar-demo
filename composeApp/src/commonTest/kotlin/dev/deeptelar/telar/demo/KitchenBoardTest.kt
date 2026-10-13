@@ -14,6 +14,7 @@ import dev.deeptelar.telar.demo.kitchen.Blueprint.Companion.KITCHEN
 import dev.deeptelar.telar.demo.kitchen.Blueprint.Companion.RAIL
 import dev.deeptelar.telar.demo.kitchen.BoardShift
 import dev.deeptelar.telar.demo.kitchen.Exit
+import dev.deeptelar.telar.demo.kitchen.Guide
 import dev.deeptelar.telar.demo.kitchen.Kitchen
 import dev.deeptelar.telar.demo.kitchen.MENU
 import dev.deeptelar.telar.demo.kitchen.Outcome
@@ -33,6 +34,7 @@ import dev.deeptelar.telar.demo.kitchen.heard
 import dev.deeptelar.telar.demo.kitchen.kitchen
 import dev.deeptelar.telar.demo.kitchen.lookingBack
 import dev.deeptelar.telar.demo.kitchen.lunchRush
+import dev.deeptelar.telar.demo.kitchen.misses
 import dev.deeptelar.telar.demo.kitchen.report
 import dev.deeptelar.telar.demo.kitchen.scriptedStations
 import dev.deeptelar.telar.demo.kitchen.sorting
@@ -629,6 +631,37 @@ class KitchenBoardTest {
         assertEquals(setOf(1, 2, 4, 9, 10), end.secondOven)
         val inSecond = end.log.filter { it.station == "oven 2" && "was served" in it.text }.map { it.text.substringAfter("order #").substringBefore(".").toInt() }
         assertTrue(inSecond.isNotEmpty() && inSecond.all { it in end.secondOven }, "$inSecond")
+    }
+
+    @Test
+    fun aShiftSaysWhatWentWrongWithEachOrder() = runTest {
+        suspend fun misses(board: Blueprint, orders: Kitchen): List<String> =
+            board.kitchen(scriptedStations(orders)).invoke(BoardShift(orders), config).state.misses(board).map { "#${it.order.number} ${it.why}" }
+
+        // A board that serves every order has nothing to say.
+        assertEquals(emptyList(), misses(Guide.through(PieceKind.LOOKUP), firstOrders()))
+        // A wrong pizza: the ticket, the station that wrote it, and what the guest wanted.
+        assertEquals(
+            listOf(
+                "#2 The lookup tile wrote: tomato, mozzarella, pepperoni. The guest wanted: tomato, mozzarella, mozzarella, pepperoni.",
+                "#3 The lookup tile wrote: tomato, mozzarella, mushrooms, peppers, onions. The guest wanted: tomato, mozzarella, mushrooms, peppers.",
+                "#4 The lookup tile wrote: tomato, mozzarella, mushrooms. The guest wanted: tomato, mozzarella, mushrooms, mushrooms.",
+            ),
+            misses(Guide.through(PieceKind.LOOKUP), specialWishes()),
+        )
+        // A reader without the book: one order gets no ticket, in the reader's own words, and one gets what its table is allergic to.
+        assertEquals(
+            listOf("#3 The reader tile wrote no ticket: The order does not say which pizza is meant.", "#4 The reader tile wrote a ticket with onions. Table 2 is allergic."),
+            misses(Guide.THE_BOOK.start, theBook()),
+        )
+        // A late order says when it was served.
+        assertEquals(
+            listOf("#3 Served at minute 22. It was due at minute 14.", "#4 Served at minute 24. It was due at minute 18."),
+            misses(Guide.through(PieceKind.LOOKUP), firstThingsFirst()),
+        )
+        // A board without a station that writes sends every order to the kitchen with nothing.
+        val sorterOnly = Blueprint().place(0, PieceKind.ONLY_MENU).connect(RAIL, Exit.NEXT, "onlyMenu").connect("onlyMenu", Exit.YES, KITCHEN).connect("onlyMenu", Exit.NO, KITCHEN)
+        assertEquals(List(4) { "#${it + 1} It reached the kitchen without a ticket, so nothing was made for it." }, misses(sorterOnly, firstOrders()))
     }
 
     @Test

@@ -75,14 +75,15 @@ internal fun Blueprint.cell(id: String): Cell? =
  * Where the tiles and the arrows of the board are, in dp. The arrows are laid out for a board that
  * lies, and an [upright] one is the same board with left and top swapped.
  */
-internal class BoardLayout(private val upright: Boolean) {
+internal class BoardLayout(private val upright: Boolean, headroom: Boolean = true) {
     private val along = if (upright) TILE_HEIGHT else TILE_WIDTH
     private val across = if (upright) TILE_WIDTH else TILE_HEIGHT
     private val gapAlong = if (upright) GAP_UPRIGHT else GAP_X
-    private val marginAlong = if (upright) MARGIN_Y else MARGIN_X
+
+    // Above an upright board is the number of the order that is on it, which takes [headroom]. Under it nothing needs room.
+    private val marginAlong = if (upright && headroom) MARGIN_Y else MARGIN_X
     private val marginAcross = if (upright) MARGIN_X else MARGIN_Y
 
-    // Above an upright board is the number of the order that is on it. Under it nothing needs room.
     private val length = marginAlong + MARGIN_X + COLUMNS * (along + gapAlong) - gapAlong
     private val breadth = marginAcross * 2 + ROWS * (across + GAP_Y) - GAP_Y
 
@@ -166,8 +167,9 @@ fun KitchenBoard(controller: KitchenController, modifier: Modifier = Modifier) {
     val colors = Theme.colors
     // A narrow screen has room for three tiles side by side, so the board stands there.
     val upright = LocalCompact.current
-    val layout = remember(upright) { BoardLayout(upright) }
     val editing = !controller.running
+    // While the player draws no order is on the board, and an upright board leaves out the room for its number.
+    val layout = remember(upright, editing) { BoardLayout(upright, headroom = !editing) }
     // While a shift runs the board is the one the shift started on.
     val board = if (editing) controller.board else controller.playing
     val width = layout.width

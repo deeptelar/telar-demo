@@ -179,15 +179,22 @@ class ScreenshotTest {
         shoot("kitchen-change-phone", Screen.Kitchen, width = 390, height = 1900)
         shoot("kitchen-change", Screen.Kitchen, height = 1300)
 
+        // A shift that went wrong: the result names the orders and says why, and offers the steps.
+        game.kitchen.choose(Rush.Book)
+        game.kitchen.start()
+        scope.advanceUntilIdle()
+        shoot("kitchen-wrong-phone", Screen.Kitchen, width = 390, height = 1900)
+
         // A later short shift opens with a board that runs, and shows its steps when the player asks.
         game.kitchen.choose(Rush.LookingBack)
         shoot("kitchen-hint-phone", Screen.Kitchen, width = 390, height = 1900)
         game.kitchen.hint(true)
         shoot("kitchen-hinted-phone", Screen.Kitchen, width = 390, height = 1900)
-        game.kitchen.load(Blueprint.FIRST)
 
-        // The lunch rush, and the stations an empty place offers in it.
+        // The lunch rush opens with an empty board. Here it has the lookup, and an empty place offers every station.
         game.kitchen.choose(Rush.Lunch)
+        shoot("kitchen-lunch-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.load(Blueprint.FIRST)
         shoot("kitchen-lunch", Screen.Kitchen, height = 2100)
         game.kitchen.tapSlot(3)
         shoot("kitchen-picking", Screen.Kitchen, height = 1500)
@@ -223,6 +230,10 @@ class ScreenshotTest {
         shoot("kitchen-dinner-phone", Screen.Kitchen, width = 390, height = 3600)
         scope.advanceUntilIdle()
         shoot("kitchen-dinner-over", Screen.Kitchen, height = 2300)
+        // The last shift is served: its result says how many medals there are, and the list of the shifts shows them.
+        shoot("kitchen-dinner-over-phone", Screen.Kitchen, width = 390, height = 1900)
+        game.kitchen.leave()
+        shoot("kitchen-medals-phone", Screen.Kitchen, width = 390, height = 1100)
     }
 
     /** The picture of a link to the game. `wasmJsMain/resources/social-preview.png` is a copy of it. */

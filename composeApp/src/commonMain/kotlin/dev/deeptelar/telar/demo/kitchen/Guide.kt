@@ -188,21 +188,25 @@ class Guide(
                     ),
             )
 
-        /** From here on a shift opens with a board that won the one before, and the steps are shown when the player asks. */
+        /** From here on a shift opens with a board that runs, and the steps are shown when the player asks. This one and the next open with the board that won the shift before. */
         val THE_BOOK: Guide = Guide(start = SORTING.boards.first(), boards = listOf(sorted(PieceKind.BOOK_READER), through(PieceKind.BOOK_READER)))
 
         val LOOKING_BACK: Guide = Guide(start = THE_BOOK.boards.first(), boards = listOf(TWO_SORTERS))
 
+        /**
+         * The last two short shifts are about the oven, and every order of theirs is a pizza of the menu. They open
+         * with the board of the first shift, so that the station they bring is the only thing to think about.
+         */
         val URGENT: Guide =
             Guide(
-                start = TWO_SORTERS,
-                boards = listOf(TWO_SORTERS.behindTheRail(PieceKind.EXPEDITER), through(PieceKind.LOOKUP).behindTheRail(PieceKind.EXPEDITER)),
+                start = through(PieceKind.LOOKUP),
+                boards = listOf(through(PieceKind.LOOKUP).behindTheRail(PieceKind.EXPEDITER), TWO_SORTERS.behindTheRail(PieceKind.EXPEDITER)),
             )
 
         val TWO_OVENS: Guide =
             Guide(
-                start = URGENT.boards.first(),
-                boards = listOf(TWO_SORTERS.behindTheRail(PieceKind.SECOND_OVEN), through(PieceKind.LOOKUP).behindTheRail(PieceKind.SECOND_OVEN)),
+                start = through(PieceKind.LOOKUP),
+                boards = listOf(through(PieceKind.LOOKUP).behindTheRail(PieceKind.SECOND_OVEN), TWO_SORTERS.behindTheRail(PieceKind.SECOND_OVEN)),
             )
     }
 }

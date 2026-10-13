@@ -355,8 +355,10 @@ class KitchenRushTest {
         assertEquals(listOf("Reader comes in a later shift. Take it off the board, or choose that shift."), kitchen.problems)
         kitchen.start()
         assertFalse(kitchen.running)
-        // A rush has every station and keeps the board. The first shift opens with its own again.
+        // A rush has every station, and opens with an empty board. The first shift opens with its own again.
         kitchen.choose(Rush.Lunch)
+        assertEquals(Blueprint(), kitchen.board)
+        kitchen.load(boardWith(PieceKind.READER))
         assertEquals(emptyList(), kitchen.problems)
         kitchen.choose(Rush.Opening)
         assertEquals(Guide.FIRST_ORDERS.start, kitchen.board)
@@ -395,6 +397,9 @@ class KitchenRushTest {
         }
         assertEquals(7, kitchen.history.size)
         assertEquals(9, kitchen.earned.size)
+        // The list of the shifts says how many of all the medals that is.
+        assertEquals(9, kitchen.won)
+        assertEquals(15, KitchenController.MEDALS)
         assertEquals(kitchen.earned, saved.last())
         assertEquals(7, saved.size)
         assertEquals(listOf(true, true), kitchen.medals(Rush.Sorting).map { it.second })
@@ -475,6 +480,39 @@ class KitchenRushTest {
         assertFalse(kitchen.finished)
         assertTrue(kitchen.shift!!.kitchen.minute in 15..25)
         assertEquals(emptyList(), kitchen.history)
+    }
+
+    @Test
+    fun aShiftCanBeSkippedToItsEnd() = runTest {
+        val watched = kitchen()
+        watched.start()
+        advanceUntilIdle()
+
+        val kitchen = kitchen()
+        kitchen.hurry()
+        assertFalse(kitchen.hurried)
+        kitchen.start()
+        advanceTimeBy(2_000)
+        assertTrue(kitchen.running)
+        assertTrue(kitchen.shift!!.kitchen.minute < watched.shift!!.kitchen.minute)
+        kitchen.hurry()
+        assertTrue(kitchen.hurried)
+        // The pause that was going on ends with its slice, and no other follows.
+        advanceTimeBy(100)
+        assertTrue(kitchen.finished)
+        // It is the shift that was watched, and it is kept like one.
+        assertEquals(watched.shift!!.kitchen.score(), kitchen.shift!!.kitchen.score())
+        assertEquals(watched.shift!!.kitchen.minute, kitchen.shift!!.kitchen.minute)
+        assertEquals(watched.shift!!.spent, kitchen.shift!!.spent)
+        assertEquals(1, kitchen.history.size)
+
+        // The next shift is shown minute by minute again.
+        kitchen.start()
+        assertFalse(kitchen.hurried)
+        advanceTimeBy(2_000)
+        assertTrue(kitchen.running)
+        kitchen.stop()
+        advanceUntilIdle()
     }
 
     @Test
