@@ -76,6 +76,8 @@ class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift
  * each needs one station that the shifts before it did not have. The last two are the rushes, with
  * every station on offer.
  *
+ * @property detail what the shift is about, and what its station does about it.
+ * @property brief the same in a line or two, for a narrow screen: there the station says what it does when it is pressed.
  * @property orders the kitchen at the start of the shift.
  * @property guide the board a short shift opens with and the steps that lead to one that wins it. `null` for a rush, which is free and opens empty.
  * @property guided `true` when the shift shows its steps without being asked: the first three, which teach how a board is drawn.
@@ -86,6 +88,7 @@ class Goal(val medal: Medal, val text: String, private val reached: (PlayedShift
 enum class Rush(
     val title: String,
     val detail: String,
+    val brief: String,
     val orders: () -> Kitchen,
     val guide: Guide? = null,
     val guided: Boolean = false,
@@ -97,6 +100,7 @@ enum class Rush(
         "First orders",
         "Four guests, four pizzas from the menu. The lookup reads the name of a pizza and writes the ticket. It is on the board, and one " +
             "arrow is missing.",
+        "Four pizzas from the menu. One arrow of the board is missing.",
         ::firstOrders,
         Guide.FIRST_ORDERS,
         guided = true,
@@ -106,6 +110,7 @@ enum class Rush(
         "Wishes",
         "Three of four guests want their pizza changed, and the lookup reads only the name of a pizza. The reader is a model: it reads " +
             "what the guest wants, for tokens and a minute an order.",
+        "Three guests want their pizza changed, and the lookup reads only its name.",
         ::specialWishes,
         Guide.WISHES,
         guided = true,
@@ -115,6 +120,7 @@ enum class Rush(
         "Sorting",
         "Four of six orders are only a pizza of the menu, and a model is wasted on them. The sorter asks that of every order. Where its " +
             "yes arrow and its no arrow go is yours to decide.",
+        "Four of six orders need no model. You decide where the sorter sends them.",
         ::sorting,
         Guide.SORTING,
         guided = true,
@@ -125,6 +131,7 @@ enum class Rush(
         "The book",
         "Two orders only make sense with what was said before: one table wants what another had, and an allergy holds for every pizza of " +
             "its table. The reader with the book is told everything the guests said.",
+        "Two orders only make sense with what was said before.",
         ::theBook,
         Guide.THE_BOOK,
         teaches = PieceKind.BOOK_READER,
@@ -133,6 +140,7 @@ enum class Rush(
         "Looking back",
         "The book gets longer with every order, and every order that goes to its reader pays for all of it. The second sorter finds the " +
             "orders that look back. The others can go to a station that costs less.",
+        "The book costs more with every order. Only a few orders need it.",
         ::lookingBack,
         Guide.LOOKING_BACK,
         teaches = PieceKind.LOOKS_BACK,
@@ -142,6 +150,7 @@ enum class Rush(
         "Urgent",
         "Four orders at once, and the two that came last are due first. The kitchen takes its tickets as they come. The expediter writes " +
             "on a ticket when it is due, and the kitchen takes the most urgent one first.",
+        "Four orders at once, and the two that came last are due first.",
         ::firstThingsFirst,
         Guide.URGENT,
         teaches = PieceKind.EXPEDITER,
@@ -150,6 +159,7 @@ enum class Rush(
         "Two ovens",
         "Six orders at once, all due at the same minute, and the oven has two places. A second oven bakes the pizzas of the orders that " +
             "pass it.",
+        "Six orders at once, all due at the same minute. The oven has two places.",
         ::twoOvens,
         Guide.TWO_OVENS,
         teaches = PieceKind.SECOND_OVEN,
@@ -160,6 +170,7 @@ enum class Rush(
         "Lunch rush",
         "Twelve orders in 95 minutes. It is about reading: guests change their mind, one table has an allergy, and one order only makes " +
             "sense if you know what another table had.",
+        "Twelve orders in 95 minutes. It is about reading what the guests say.",
         ::lunchRush,
         cheap = 4_000,
         small = 1,
@@ -173,6 +184,7 @@ enum class Rush(
         "Dinner rush",
         "Twelve orders in 75 minutes, most of them in two waves, and not due in the order they come. It is about the oven: one oven that " +
             "takes the tickets as they come is too slow, and the board has only six places.",
+        "Twelve orders in 75 minutes, in two waves. It is about the oven, and the board has six places.",
         ::dinnerRush,
         cheap = 4_000,
         small = 3,

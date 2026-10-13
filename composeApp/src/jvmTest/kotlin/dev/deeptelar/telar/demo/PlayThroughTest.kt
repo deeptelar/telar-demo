@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -148,10 +149,9 @@ class PlayThroughTest {
         onNodeWithText("HIDE THE CODE").performScrollTo().performClick()
         onNodeWithContentDescription("The code of the board").assertDoesNotExist()
 
-        // A board fits in a link, which opens the stage with that board drawn.
-        onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
-        assertEquals(listOf("https://deeptelar.github.io/telar-demo/#kitchen=opening.--l---2k"), copied)
-        onNodeWithText("COPIED").performScrollTo().assertIsDisplayed()
+        // A short shift with the scripted chefs shows its board and little else: nothing about the model, and no link to pass on.
+        onNodeWithText("COPY A LINK TO THIS BOARD").assertDoesNotExist()
+        onNodeWithText("MODEL").assertDoesNotExist()
 
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.finished }
@@ -159,7 +159,8 @@ class PlayThroughTest {
         onNodeWithContentDescription("Shift over").performScrollTo().assertIsDisplayed()
         onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Oven place 1: empty").performScrollTo().assertIsDisplayed()
-        onNodeWithText("1 / FIRST ORDERS / LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        // The shifts that were played are listed in a rush, where one board is compared with another.
+        onNodeWithText("YOUR SHIFTS / FIRST ORDERS").assertDoesNotExist()
         // The medal comes with the result.
         onNodeWithContentDescription("Right medal: won").performScrollTo().assertIsDisplayed()
         onNodeWithText("RIGHT / WON").performScrollTo().assertIsDisplayed()
@@ -208,9 +209,6 @@ class PlayThroughTest {
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithContentDescription("Station reader").performScrollTo().performClick()
         onNodeWithContentDescription("Board: reader to kitchen, rail to reader").performScrollTo().assertIsDisplayed()
-        // The link is of the board as it is drawn now, so the button offers it again.
-        onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
-        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=wishes.r-----0k", copied.last())
         // The orders of the shift that is over say where they would go on the new board.
         onAllNodesWithText("on the board now: rail > reader > kitchen").assertCountEquals(4)
 
@@ -220,7 +218,6 @@ class PlayThroughTest {
         onNodeWithText("START A NEW SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 3 }
         onNodeWithText("400 of 400").performScrollTo().assertIsDisplayed()
-        onNodeWithText("3 / WISHES / READER / SCRIPTED").performScrollTo().assertIsDisplayed()
         onNodeWithContentDescription("Right medal: won").performScrollTo().assertIsDisplayed()
         onNodeWithText("NEXT SHIFT: SORTING").performScrollTo().assertIsDisplayed()
 
@@ -232,10 +229,6 @@ class PlayThroughTest {
         onNodeWithContentDescription("Shift 1: First orders, 1 of 1 medals").performScrollTo().performClick()
         onNodeWithContentDescription("Board: rail to lookup").performScrollTo().assertIsDisplayed()
         onNodeWithText("START OVER").performScrollTo().assertIsDisplayed()
-        // The board of an earlier shift can be taken up again.
-        onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
-        assertEquals("lookup", game.kitchen.board.summary)
-        assertEquals(emptyList(), game.kitchen.problems)
 
         // No shift is locked. The rushes offer every station and have three medals.
         onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
@@ -249,7 +242,9 @@ class PlayThroughTest {
         onNodeWithContentDescription("Board: no arrows").performScrollTo().assertIsDisplayed()
         onNodeWithText("Press a + to put a station on the board.").performScrollTo().assertIsDisplayed()
         onNodeWithText("The rail has no arrow.", substring = true).assertDoesNotExist()
-        onNodeWithContentDescription("Order 12 goes rail > stuck").performScrollTo().assertIsDisplayed()
+        // Its orders are listed without a way, which they get with the first station.
+        onNodeWithContentDescription("Order 12").performScrollTo().assertIsDisplayed()
+        onNodeWithText("goes: rail > stuck").assertDoesNotExist()
         onNodeWithContentDescription("Place 1").performScrollTo().performClick()
         onNodeWithText("MENU LOOKUP").performScrollTo().performClick()
         onNodeWithContentDescription("The kitchen").performScrollTo().performClick()
@@ -259,10 +254,20 @@ class PlayThroughTest {
         onNodeWithContentDescription("The rail").performScrollTo().performClick()
         onNodeWithContentDescription("Station secondOven").performScrollTo().performClick()
         onNodeWithContentDescription("Order 12 goes rail > oven 2 > lookup > kitchen").performScrollTo().assertIsDisplayed()
+        // A board fits in a link, which opens the stage with that board drawn.
+        onNodeWithText("COPY A LINK TO THIS BOARD").performScrollTo().performClick()
+        assertEquals("https://deeptelar.github.io/telar-demo/#kitchen=dinner.lo----1k0", copied.last())
+        onNodeWithText("COPIED").performScrollTo().assertIsDisplayed()
         onNodeWithText("START THE SHIFT").performScrollTo().performClick()
         waitUntil(timeoutMillis = 10_000) { game.kitchen.history.size == 4 }
         onNodeWithContentDescription("Oven 2 place 1: empty").performScrollTo().assertIsDisplayed()
-        onNodeWithText("4 / DINNER RUSH / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        // The list is of the shifts of these orders, and a board that was played can be taken up again.
+        onNodeWithText("YOUR SHIFTS / DINNER RUSH").performScrollTo().assertIsDisplayed()
+        onNodeWithText("1 / OVEN 2 + LOOKUP / SCRIPTED").performScrollTo().assertIsDisplayed()
+        onNodeWithText("CLEAR THE BOARD").performScrollTo().performClick()
+        onNodeWithText("USE BOARD 1 AGAIN").performScrollTo().performClick()
+        assertEquals("oven 2 + lookup", game.kitchen.board.summary)
+        assertEquals(emptyList(), game.kitchen.problems)
 
         // The stage select screen leads here too.
         onNodeWithText("< ALL SHIFTS").performScrollTo().performClick()
@@ -288,11 +293,10 @@ class PlayThroughTest {
         onNodeWithContentDescription("Shift 1: First orders, 0 of 1 medals, chosen").performScrollTo().performClick()
         onNodeWithContentDescription("Step: Press the lookup tile.").assertIsDisplayed()
         onNodeWithContentDescription("Station lookup").assertIsDisplayed()
-        // The step is right above the board, and both fit the screen: with the last tile of the board on it, the step is there too,
-        // and so is the next one after a press.
-        onNodeWithContentDescription("The kitchen").performScrollTo()
-        onNodeWithContentDescription("Step: Press the lookup tile.").assertIsDisplayed()
-        onNodeWithContentDescription("Station lookup").assertIsDisplayed().performClick()
+        // The step is right above the board, and both fit the screen as it opens: the last tile of the board is on it whole,
+        // so no step of the shift asks for a tile that is not there.
+        assertTrue(onNodeWithContentDescription("The kitchen").assertIsDisplayed().getBoundsInRoot().bottom <= 700.dp)
+        onNodeWithContentDescription("Station lookup").performClick()
         onNodeWithContentDescription("Step: Press the kitchen. That draws the arrow from the lookup tile to it.").assertIsDisplayed()
         onNodeWithContentDescription("The kitchen").assertIsDisplayed().performClick()
         onNodeWithContentDescription("Step: The board is ready. Start the shift.").assertIsDisplayed()
