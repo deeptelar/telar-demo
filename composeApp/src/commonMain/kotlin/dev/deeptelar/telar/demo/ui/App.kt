@@ -128,6 +128,8 @@ fun GameScreens(game: Game, settings: Settings, screen: Screen, onNavigate: (Scr
                                     realModel = settings.modelLabel.takeIf { settings.usesService },
                                     onStages = { onNavigate(Screen.Stages) },
                                     onNext = if (screen.stage < stages.size) ({ onNavigate(Screen.Play(screen.stage + 1)) }) else null,
+                                    inspecting = game.inspecting,
+                                    onInspect = game::inspect,
                                 )
                                 Screen.About -> AboutScreen { onNavigate(Screen.Stages) }
                                 Screen.Options -> OptionsScreen(settings, game, onSave) { onNavigate(Screen.Stages) }

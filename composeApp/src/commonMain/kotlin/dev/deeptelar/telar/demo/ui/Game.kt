@@ -12,6 +12,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import dev.deeptelar.telar.Checkpoint
 import dev.deeptelar.telar.CheckpointCorruptedException
 import dev.deeptelar.telar.Checkpointer
 import dev.deeptelar.telar.END
@@ -84,6 +85,10 @@ class StageController(
     var ticket: Ticket? by mutableStateOf(null)
         private set
 
+    /** The ticket before the last finished step, to show what that step changed. `null` before the first step. */
+    var ticketBefore: Ticket? by mutableStateOf(null)
+        private set
+
     /** The nodes that are running right now. */
     var active: Set<String> by mutableStateOf(emptySet())
         private set
@@ -127,6 +132,13 @@ class StageController(
     var step: Int by mutableStateOf(0)
         private set
 
+    /**
+     * The checkpoints of this stage's run, oldest first, as `CompiledGraph.history` reads them from the
+     * checkpointer. They are read again whenever the run saves one, so a player can watch them arrive.
+     */
+    var checkpoints: List<Checkpoint<Ticket>> by mutableStateOf(emptyList())
+        private set
+
     /** True when what is shown came from storage rather than from a run in this session. */
     var restored: Boolean by mutableStateOf(false)
         private set
@@ -142,6 +154,7 @@ class StageController(
         scope.launch {
             phase = savedPhase()
             restored = phase != Phase.Ready
+            checkpoints = savedCheckpoints()
         }
     }
 
@@ -150,6 +163,7 @@ class StageController(
         if (running || mail.text.isBlank()) return
         lastMail = mail
         ticket = Ticket(mail.from, mail.text.trim())
+        ticketBefore = null
         visited = setOf(START)
         trail = emptySet()
         log = emptyList()
@@ -184,6 +198,8 @@ class StageController(
             checkpointer.delete(threadId)
             phase = Phase.Ready
             ticket = null
+            ticketBefore = null
+            checkpoints = emptyList()
             visited = emptySet()
             trail = emptySet()
             waitingAt = emptyList()
@@ -208,6 +224,11 @@ class StageController(
             try {
                 events.collect { event ->
                     record(event)
+                    // A run saves its input before its first node starts, each step before StepCompleted,
+                    // and a pause before Interrupted.
+                    if (event is GraphEvent.NodeStarted || event is GraphEvent.StepCompleted || event is GraphEvent.Interrupted) {
+                        checkpoints = savedCheckpoints()
+                    }
                     if (event is GraphEvent.Completed) outcome = Phase.Clear
                     if (event is GraphEvent.Interrupted) outcome = Phase.SavePoint
                 }
@@ -226,6 +247,7 @@ class StageController(
                     // The saved run says where a retry would pick up, and after Stop it is all there is to go by.
                     val saved = savedPhase()
                     phase = outcome ?: saved
+                    checkpoints = savedCheckpoints()
                 }
                 running = false
                 if (outcome == Phase.Clear) onClear(stage)
@@ -254,6 +276,7 @@ class StageController(
                 log = log + LogLine(event.step.toString().padStart(2, '0'), event.nodes.joinToString(" + ")) +
                     event.state.chat.drop(before.chat.size).flatMap(::toolLines) +
                     event.state.changesSince(before).ifEmpty { listOf(UNCHANGED) }.map { LogLine("", it, Tone.Detail) }
+                ticketBefore = before
                 ticket = event.state
                 lastNodes = event.nodes
                 chosen = emptySet()
@@ -301,6 +324,15 @@ class StageController(
         null
     }
 
+    private suspend fun savedCheckpoints(): List<Checkpoint<Ticket>> = try {
+        graph.history(config)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // What savedRun() reports, it reports. The list is only something to look at.
+        emptyList()
+    }
+
     private suspend fun savedPhase(): Phase {
         val saved = savedRun() ?: return Phase.Ready
         ticket = saved.state
@@ -338,6 +370,15 @@ class Game(
     var cleared: Set<Int> by mutableStateOf(emptySet())
         private set
 
+    /** Whether the stages show the ticket as JSON and the checkpoints of the run, next to the ticket. */
+    var inspecting: Boolean by mutableStateOf(false)
+        private set
+
+    fun inspect(on: Boolean) {
+        inspecting = on
+        scope.launch { if (on) store.set(INSPECT, "on") else store.remove(INSPECT) }
+    }
+
     private val medals = mutableStateOf(emptySet<Pair<Rush, Medal>>())
 
     /** The bonus stage. Its chefs are scripted unless the player chose a real model. */
@@ -364,6 +405,7 @@ class Game(
             cleared = store.get(CLEARED).orEmpty().split(',').mapNotNull { it.toIntOrNull() }.toSet()
             // A medal that was won before this one was read from the store stays won.
             medals.value = medals.value + store.get(MEDALS).orEmpty().split(',').mapNotNull(::medalOf)
+            inspecting = store.get(INSPECT) == "on"
         }
     }
 
@@ -402,5 +444,6 @@ class Game(
     private companion object {
         const val CLEARED = "pixelpizza.cleared"
         const val MEDALS = "pixelpizza.kitchen.medals"
+        const val INSPECT = "pixelpizza.inspect"
     }
 }

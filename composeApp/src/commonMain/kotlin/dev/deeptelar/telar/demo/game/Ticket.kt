@@ -2,6 +2,7 @@ package dev.deeptelar.telar.demo.game
 
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import dev.deeptelar.telar.agent.ChatMessage
 import dev.deeptelar.telar.agent.ChatModel
 import dev.deeptelar.telar.agent.Tool
@@ -42,6 +43,31 @@ fun Ticket.changesSince(before: Ticket): List<String> = buildList {
     if (attempts != before.attempts) add("attempts = $attempts")
     if (problem != before.problem) add("problem = \"$problem\"")
     if (reply != before.reply) add("reply = \"$reply\"")
+}
+
+/** The JSON of a ticket as the live view of a stage shows it: every field, one per line. */
+private val readable = Json {
+    prettyPrint = true
+    encodeDefaults = true
+}
+
+/** This ticket as JSON, the way `KotlinxStateSerializer` sees the data class, but with every field on a line of its own. */
+fun Ticket.toJson(): String = readable.encodeToString(Ticket.serializer(), this)
+
+/**
+ * The lines of [toJson], each with `true` when it is not in the JSON of [before]: what a step
+ * changed, line by line. Nothing is marked when there is no [before].
+ */
+fun Ticket.jsonLines(before: Ticket?): List<Pair<String, Boolean>> {
+    val now = toJson().lines()
+    if (before == null) return now.map { it to false }
+    // A line that was there before counts once, so a second line with the same text is marked.
+    val left = before.toJson().lines().groupingBy { it }.eachCount().toMutableMap()
+    return now.map { line ->
+        val count = left[line] ?: 0
+        if (count > 0) left[line] = count - 1
+        line to (count == 0)
+    }
 }
 
 /** A message waiting in a stage's inbox. */
