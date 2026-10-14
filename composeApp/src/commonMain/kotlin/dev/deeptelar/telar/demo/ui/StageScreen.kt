@@ -35,10 +35,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.deeptelar.telar.Checkpoint
 import dev.deeptelar.telar.demo.game.HelpDesks
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.demo.game.Stage
 import dev.deeptelar.telar.demo.game.Ticket
+import dev.deeptelar.telar.demo.game.jsonLines
 import dev.deeptelar.telar.demo.game.stages
 
 private const val TUTORIAL = "https://github.com/deeptelar/telar/blob/main/docs/tutorial/"
@@ -57,7 +59,14 @@ private val tutorialPages = mapOf(
 
 /** One stage: its briefing, the board, the inbox to play from, and the ticket and log of the current run. */
 @Composable
-fun StageScreen(controller: StageController, realModel: String?, onStages: () -> Unit, onNext: (() -> Unit)?) {
+fun StageScreen(
+    controller: StageController,
+    realModel: String?,
+    onStages: () -> Unit,
+    onNext: (() -> Unit)?,
+    inspecting: Boolean = false,
+    onInspect: (Boolean) -> Unit = {},
+) {
     val stage = controller.stage
     val compact = LocalCompact.current
 
@@ -79,13 +88,15 @@ fun StageScreen(controller: StageController, realModel: String?, onStages: () ->
 
     if (compact) {
         Inbox(controller, Modifier.fillMaxWidth())
-        TicketPanel(controller, Modifier.fillMaxWidth())
+        TicketPanel(controller, inspecting, onInspect, Modifier.fillMaxWidth())
+        if (inspecting) LivePanel(controller, Modifier.fillMaxWidth())
         LogPanel(controller, Modifier.fillMaxWidth())
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Inbox(controller, Modifier.weight(1f))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                TicketPanel(controller, Modifier.fillMaxWidth())
+                TicketPanel(controller, inspecting, onInspect, Modifier.fillMaxWidth())
+                if (inspecting) LivePanel(controller, Modifier.fillMaxWidth())
                 LogPanel(controller, Modifier.fillMaxWidth())
             }
         }
@@ -300,11 +311,24 @@ private fun MailRow(mail: Mail, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The state of the run, field by field. Only what the nodes have filled in so far is listed. */
+/**
+ * The state of the run, field by field. Only what the nodes have filled in so far is listed. Its
+ * header switches the [LivePanel] on and off.
+ */
 @Composable
-private fun TicketPanel(controller: StageController, modifier: Modifier = Modifier) {
+private fun TicketPanel(controller: StageController, inspecting: Boolean, onInspect: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val ticket = controller.ticket
-    Panel("Ticket", modifier, trailing = { Label("the state") }) {
+    Panel(
+        "Ticket",
+        modifier,
+        trailing = {
+            Label(
+                if (inspecting) "hide json + saves" else "show json + saves",
+                Modifier.pointerHoverIcon(PointerIcon.Hand).clickable(role = Role.Switch) { onInspect(!inspecting) },
+                color = if (inspecting) Theme.colors.ink else Theme.colors.red,
+            )
+        },
+    ) {
         if (ticket == null) {
             Body("No ticket on the desk. Pick one from the inbox and press RUN.", color = Theme.colors.dim)
         } else {
@@ -325,6 +349,90 @@ private fun TicketSpecs(ticket: Ticket, paid: Boolean) {
     if (ticket.attempts > 0) Spec("attempts", ticket.attempts.toString())
     if (ticket.problem.isNotEmpty()) Spec("problem", ticket.problem, valueColor = Theme.colors.red)
     if (ticket.reply.isNotEmpty()) Spec("reply", ticket.reply)
+}
+
+/**
+ * What Telar keeps of the run, as it changes: the ticket as the JSON of its data class, and the
+ * checkpoints that `history()` reads from the checkpointer. A checkpoint opens to the ticket it saved.
+ */
+@Composable
+private fun LivePanel(controller: StageController, modifier: Modifier = Modifier) {
+    val colors = Theme.colors
+    // The step of the checkpoint whose ticket is shown, or null when none is open.
+    var open by remember(controller) { mutableStateOf<Int?>(null) }
+    Panel("Live state", modifier, trailing = { Label("what telar keeps") }) {
+        Label("ticket, the data class as json")
+        val ticket = controller.ticket
+        if (ticket == null) {
+            Body("No ticket yet. Run one and watch its fields fill in.", color = colors.dim)
+        } else {
+            JsonLines(ticket.jsonLines(controller.ticketBefore))
+            if (controller.ticketBefore != null) Body("Marked: what the last step changed.", color = colors.dim)
+        }
+
+        Label("checkpoints, graph.history(config)")
+        val checkpoints = controller.checkpoints
+        if (checkpoints.isEmpty()) {
+            Body("Nothing saved yet. A run saves its ticket before the first node, then after every step.", color = colors.dim)
+        }
+        Column {
+            // The latest first: that is where a resume would continue.
+            checkpoints.asReversed().forEachIndexed { index, checkpoint ->
+                val opened = open == checkpoint.step
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(if (opened) colors.panel else colors.ground)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable { open = if (opened) null else checkpoint.step }
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Label("step ${checkpoint.step.twoDigits()}", Modifier.padding(top = 4.dp).width(64.dp), color = if (index == 0) colors.ink else colors.dim)
+                        Body(checkpointText(checkpoint), Modifier.weight(1f), color = if (index == 0) colors.ink else colors.dim)
+                    }
+                    if (opened) {
+                        val earlier = checkpoints.lastOrNull { it.step < checkpoint.step }
+                        JsonLines(checkpoint.state.jsonLines(earlier?.state))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** What a checkpoint says about the run: where it goes on, and why it stopped there. */
+private fun checkpointText(checkpoint: Checkpoint<Ticket>): String = when {
+    checkpoint.isComplete -> "the end: nothing left to run"
+    checkpoint.interruptedBefore -> "paused before ${checkpoint.nextNodes.joinToString(" + ")}"
+    else -> "next: ${checkpoint.nextNodes.joinToString(" + ")}"
+}
+
+/** JSON, a line at a time, with the lines marked `true` highlighted. It wraps, to fit a phone. */
+@Composable
+private fun JsonLines(lines: List<Pair<String, Boolean>>) {
+    val colors = Theme.colors
+    val text = remember(lines, colors) {
+        buildAnnotatedString {
+            lines.forEachIndexed { index, (line, changed) ->
+                if (index > 0) append('\n')
+                if (changed) {
+                    // The indent stays unmarked, so that the mark covers what changed.
+                    val text = line.trimStart()
+                    append(line.substring(0, line.length - text.length))
+                    withStyle(SpanStyle(color = colors.ink, background = colors.yellow.copy(alpha = 0.3f))) { append(text) }
+                } else {
+                    append(line)
+                }
+            }
+        }
+    }
+    Box(Modifier.fillMaxWidth().background(colors.panel, RoundedCornerShape(4.dp)).padding(12.dp)) {
+        SelectionContainer {
+            BasicText(text, style = Theme.body.copy(color = colors.dim, fontSize = 12.sp, lineHeight = 17.sp))
+        }
+    }
 }
 
 /** The events of the run as they arrived from `stream()`. */

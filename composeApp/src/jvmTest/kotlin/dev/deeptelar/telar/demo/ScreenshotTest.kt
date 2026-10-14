@@ -91,6 +91,11 @@ class ScreenshotTest {
         game.controller(5).play(refund)
         scope.advanceUntilIdle()
         shoot("stage-5-save-point", Screen.Play(5), height = 1000)
+        // The live view: the ticket as the JSON of its data class, and the checkpoints the run saved.
+        game.inspect(true)
+        shoot("stage-5-live", Screen.Play(5), height = 1800)
+        shoot("stage-5-live-phone", Screen.Play(5), width = 390, height = 3400)
+        game.inspect(false)
 
         // Stage 6, after the tools ran: the model is halfway through writing its answer.
         game.controller(6).play(Mail("Ben", "How much is a margherita and a cola?"))

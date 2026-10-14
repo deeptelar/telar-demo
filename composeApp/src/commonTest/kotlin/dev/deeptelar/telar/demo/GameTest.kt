@@ -12,6 +12,7 @@ import kotlinx.serialization.json.putJsonArray
 import dev.deeptelar.telar.Checkpoint
 import dev.deeptelar.telar.Checkpointer
 import dev.deeptelar.telar.END
+import dev.deeptelar.telar.MemoryCheckpointer
 import dev.deeptelar.telar.START
 import dev.deeptelar.telar.agent.ChatModel
 import dev.deeptelar.telar.agent.ChatModelException
@@ -19,6 +20,8 @@ import dev.deeptelar.telar.demo.game.Agent
 import dev.deeptelar.telar.demo.game.HelpDesks
 import dev.deeptelar.telar.demo.game.Mail
 import dev.deeptelar.telar.demo.game.Ticket
+import dev.deeptelar.telar.demo.game.jsonLines
+import dev.deeptelar.telar.demo.game.toJson
 import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.storage.MemoryStore
@@ -360,6 +363,72 @@ class GameTest {
         val reloaded = game().controller(5)
         advanceUntilIdle()
         assertEquals(Phase.Ready, reloaded.phase)
+    }
+
+    @Test
+    fun theLiveViewListsEveryCheckpointAsTheRunSavesIt() = runTest {
+        // The library's MemoryCheckpointer keeps every step, as the checkpointers of the game do.
+        val game = Game(scriptedModel(delayMillis = 1_000), store, MemoryCheckpointer(), this, 1_000)
+        val stage = game.controller(5)
+        advanceUntilIdle()
+        assertEquals(emptyList(), stage.checkpoints)
+
+        stage.play(refund)
+        advanceTimeBy(500)
+        // The ticket is saved before the first node runs.
+        assertEquals(listOf(0), stage.checkpoints.map { it.step })
+        assertNull(stage.ticketBefore)
+
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1), stage.checkpoints.map { it.step })
+        assertEquals(listOf(HelpDesks.PAY), stage.checkpoints.last().nextNodes)
+        assertTrue(stage.checkpoints.last().interruptedBefore)
+        assertEquals(0, stage.ticketBefore?.refund)
+        assertEquals(12, stage.ticket?.refund)
+
+        stage.decide(approved = true)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2), stage.checkpoints.map { it.step })
+        assertTrue(stage.checkpoints.last().isComplete)
+        assertTrue(stage.checkpoints.last().state.approved)
+
+        // A new session reads them from storage, and Discard throws them away.
+        val reloaded = Game(scriptedModel(), store, MemoryCheckpointer<Ticket>().also { saves -> stage.checkpoints.forEach { saves.save("stage-5", it) } }, this, 0)
+            .controller(5)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2), reloaded.checkpoints.map { it.step })
+        reloaded.reset()
+        advanceUntilIdle()
+        assertEquals(emptyList(), reloaded.checkpoints)
+    }
+
+    @Test
+    fun theJsonOfATicketMarksWhatAStepChanged() {
+        val before = Ticket("Ben", "My pizza arrived cold.")
+        val after = before.copy(topic = "refund", facts = listOf("ordered at 19:02"))
+
+        val changed = after.jsonLines(before).filter { it.second }.map { it.first.trim() }
+
+        // The empty list was `[]` on one line, so its new closing bracket is marked too.
+        assertEquals(listOf("\"topic\": \"refund\",", "\"facts\": [", "\"ordered at 19:02\"", "],"), changed)
+        assertTrue(after.jsonLines(null).none { it.second })
+        // Every field of the data class is there, also the ones that still have their default.
+        assertTrue("\"reply\": \"\"" in after.toJson())
+    }
+
+    @Test
+    fun theLiveViewSwitchSurvivesANewSession() = runTest {
+        val game = game()
+        advanceUntilIdle()
+        assertFalse(game.inspecting)
+
+        game.inspect(true)
+        advanceUntilIdle()
+        assertTrue(game().also { advanceUntilIdle() }.inspecting)
+
+        game.inspect(false)
+        advanceUntilIdle()
+        assertFalse(game().also { advanceUntilIdle() }.inspecting)
     }
 
     @Test

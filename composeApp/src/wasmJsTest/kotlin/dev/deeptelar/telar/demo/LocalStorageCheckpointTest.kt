@@ -44,4 +44,26 @@ class LocalStorageCheckpointTest {
         assertEquals(Phase.Ready, afterwards.phase)
         assertNull(afterwards.ticket)
     }
+
+    @Test
+    fun theLiveViewReadsEveryCheckpointOfARunFromLocalStorage() = runTest {
+        val stage = game().controller(5)
+        advanceUntilIdle()
+        stage.reset()
+        advanceUntilIdle()
+        stage.play(Mail("Ben", "My pizza arrived cold. I want a refund."))
+        advanceUntilIdle()
+        stage.decide(approved = true)
+        advanceUntilIdle()
+
+        // The ticket as the run started, after prepare, and after pay: also in the next session.
+        assertEquals(listOf(0, 1, 2), stage.checkpoints.map { it.step })
+        val reloaded = game().controller(5)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2), reloaded.checkpoints.map { it.step })
+        assertTrue(reloaded.checkpoints.last().state.approved)
+
+        reloaded.reset()
+        advanceUntilIdle()
+    }
 }
