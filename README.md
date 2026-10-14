@@ -38,6 +38,11 @@ Press a tile on the board to see the code behind it: the node, its arrows and th
 The text is cut out of the game's own source files when the app is built, so it is always the code
 that runs.
 
+**Show JSON + saves**, in the header of the ticket, opens what Telar keeps of the run: the ticket as
+the JSON of its data class, with the lines the last step changed marked, and the checkpoints that
+`history()` reads from the checkpointer, the latest first. Both change while the run moves across
+the board. Press a checkpoint to see the ticket it saved. The game remembers the switch.
+
 | | |
 |---|---|
 | ![A run waiting at a save point](docs/save-point.png) | ![A failed node, with a retry from the last save](docs/game-over.png) |
