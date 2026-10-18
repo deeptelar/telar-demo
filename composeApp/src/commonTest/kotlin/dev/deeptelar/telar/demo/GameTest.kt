@@ -162,6 +162,7 @@ class GameTest {
         assertEquals("Sorry Ben! We sent you 12 euros.", stage.ticket?.reply)
         assertEquals(setOf(5), game.cleared)
         // The decision is the player's line in the log, and the step of `pay` only reports what `pay` wrote.
+        // The bank sent the money once, although `pay` ran twice.
         assertEquals(
             listOf(
                 "01" to "prepare",
@@ -169,7 +170,11 @@ class GameTest {
                 "SAV" to "stopped before pay",
                 "YOU" to "approved",
                 "" to "approved = true",
+                "OUT" to "bank: 12 euros sent to Ben, transfer T-1",
+                "TRY" to "pay: the mail server is busy",
+                "" to "try 2 in 1s",
                 "02" to "pay",
+                "" to "transfer = \"T-1\"",
                 "" to "reply = \"Sorry Ben! We sent you 12 euros.\"",
                 "END" to "reply sent",
             ),

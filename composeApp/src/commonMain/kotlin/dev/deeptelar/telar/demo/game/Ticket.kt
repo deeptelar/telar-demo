@@ -21,6 +21,8 @@ data class Ticket(
     val facts: List<String> = emptyList(),
     val refund: Int = 0,
     val approved: Boolean = false,
+    /** The bank's number of the transfer that paid the refund, in stage 5. */
+    val transfer: String = "",
     val reply: String = "",
     val attempts: Int = 0,
     val problem: String = "",
@@ -40,6 +42,7 @@ fun Ticket.changesSince(before: Ticket): List<String> = buildList {
     val messages = chat.size - before.chat.size
     if (messages > 0) add("chat += $messages ${if (messages == 1) "message" else "messages"}")
     if (refund != before.refund) add("refund = $refund")
+    if (transfer != before.transfer) add("transfer = \"$transfer\"")
     if (attempts != before.attempts) add("attempts = $attempts")
     if (problem != before.problem) add("problem = \"$problem\"")
     if (reply != before.reply) add("reply = \"$reply\"")
