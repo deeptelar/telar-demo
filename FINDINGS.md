@@ -473,3 +473,33 @@ What the pass showed:
 - **The game teaches by hand what the library now does for it.** Stage 7 fails on a busy phone so
   that the player retries the run, and the tools of the agent in the full desk could now be saved
   as effects. The game shows none of what the three releases added.
+
+## The thirteenth pass: a node that tries again
+
+Stage 7 taught one way back from a failure: the run fails, and the player continues it from the last
+save. This pass gives the kitchen node `retry = Retry(attempts = 2)` of `0.1.0-alpha10`, so the
+stage now shows both, in the order they happen. The phone is busy twice in a row, so the node's
+second try a second later is still busy, the run fails, and the player's retry gets through.
+
+What changed here: the kitchen node and its phone, the stage's briefing, a `TRY` line in the run log
+for each `GraphEvent.NodeRetry` (the failure and when the next try starts), and the game over panel
+says how often the node was tried, from `NodeExecutionException.attempts`.
+
+What was checked:
+
+- 123 tests pass on the JVM and 115 in headless Chrome (wasmJs). Two of them now check the tries:
+  the graph's failure has two attempts, and the stage's log has a `TRY` line with `try 2 in 1s`
+  between the first step and the failure.
+- The screen of the failed run, also at the width of a phone (390 dp).
+
+Not checked: the stage in a real browser, where the pause of one second can be watched.
+
+What the pass showed:
+
+- **A retry needed one argument and no new state.** The tries happen inside the step, so the board,
+  the saves and the retry of the run work as before, and the log only had to read one more event.
+- **The event arrives before the pause.** The log can say when the next try starts while the game
+  waits, rather than after it.
+- **A phone that fails by count is fragile with tries.** Its state lives in the graph of the stage,
+  so after a reload a new phone starts counting again and the first retry of the run fails once
+  more. That was so before this pass too, and the tries do not make it worse.
