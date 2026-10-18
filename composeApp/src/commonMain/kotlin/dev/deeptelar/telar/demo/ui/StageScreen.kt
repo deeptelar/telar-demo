@@ -195,6 +195,12 @@ private fun Fact(name: String, value: String) {
     }
 }
 
+/** The title of the game over panel: the node that failed, and how often it was tried. */
+private fun failure(controller: StageController): String {
+    val node = controller.failedNode ?: return "The run failed"
+    return if (controller.failedTries > 1) "Node $node failed ${controller.failedTries} times" else "Node $node failed"
+}
+
 /** What the run came to: a decision to make, a failure to retry, or a cleared stage. */
 @Composable
 private fun Outcome(controller: StageController, onStages: () -> Unit, onNext: (() -> Unit)?) {
@@ -221,7 +227,7 @@ private fun Outcome(controller: StageController, onStages: () -> Unit, onNext: (
                 PillButton("Discard", controller::reset, emphasis = Emphasis.Quiet)
             }
         }
-        Phase.GameOver -> Panel(controller.failedNode?.let { "Node $it failed" } ?: "The run failed", Modifier.fillMaxWidth(), colors.red) {
+        Phase.GameOver -> Panel(failure(controller), Modifier.fillMaxWidth(), colors.red) {
             DotMatrix("Game over", pitch = 3.dp, color = colors.red)
             Body(controller.error.orEmpty())
             Body(

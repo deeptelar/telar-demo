@@ -137,9 +137,10 @@ val stages: List<Stage> = listOf(
     Stage(
         number = 7,
         title = "Game over",
-        moves = "a failed node / resume",
-        briefing = "The kitchen phone is busy and the run fails. Nothing is lost: every finished step was " +
-            "saved, so a retry starts at the node that failed, not at the beginning.",
+        moves = "retry / a failed node / resume",
+        briefing = "The kitchen phone is busy. The node calls again by itself a second later, and when the line " +
+            "is still busy, the run fails. Nothing is lost: every finished step was saved, so a retry starts at " +
+            "the node that failed, not at the beginning.",
         inbox = listOf(delivery),
         board = row("greet", HelpDesks.KITCHEN),
         readsMessage = false,

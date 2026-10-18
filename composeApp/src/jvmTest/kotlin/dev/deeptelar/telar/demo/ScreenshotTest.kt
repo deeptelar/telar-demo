@@ -107,6 +107,7 @@ class ScreenshotTest {
         game.controller(7).play(delivery)
         scope.advanceUntilIdle()
         shoot("stage-7-game-over", Screen.Play(7))
+        shoot("stage-7-game-over-phone", Screen.Play(7), width = 390, height = 1500)
 
         shoot("stage-2-ready", Screen.Play(2), dark = false)
 

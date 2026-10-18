@@ -23,7 +23,7 @@ nodes to a full agent workflow. One Compose Multiplatform codebase runs it in th
 | 4 | Two at once | Fan-out to nodes with a `work` and an `update`, which run at the same time |
 | 5 | Save points | `interruptBefore` stops the run for you; `resume` continues it, also after a reload |
 | 6 | The agent | A model that calls tools, as a loop of two nodes |
-| 7 | Game over | A node fails; `resume` retries from the last save |
+| 7 | Game over | A node with a `retry` tries again by itself, then fails; `resume` retries from the last save |
 | 8 | The full desk | All of it on one board: four kinds of ticket, four ways through |
 
 Each stage is the level of the tutorial with the same number: stage 3 is level 3.

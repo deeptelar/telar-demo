@@ -3,6 +3,7 @@ package dev.deeptelar.telar.demo.game
 import dev.deeptelar.telar.CompiledGraph
 import dev.deeptelar.telar.END
 import dev.deeptelar.telar.NodeRef
+import dev.deeptelar.telar.Retry
 import dev.deeptelar.telar.START
 import dev.deeptelar.telar.StateGraph
 import dev.deeptelar.telar.agent.ChatMessage
@@ -158,23 +159,27 @@ object HelpDesks {
         START then prepare then pay then END
     }.compile()
 
-    /** The kitchen's phone. It is busy on every other call, so a run fails once and a retry gets through. */
+    /**
+     * The kitchen's phone. It is busy twice in a row and then answers, so the node's second try is still
+     * busy, the run fails, and the retry of the run gets through.
+     */
     class BusyPhone {
         private var calls = 0
 
         fun call(): String {
-            if (++calls % 2 == 1) error("the kitchen phone is busy")
+            if (++calls % 3 != 0) error("the kitchen phone is busy")
             return "Your pizza is in the oven."
         }
     }
 
-    /** Stage 7: the second node depends on something that can fail. */
+    /** Stage 7: the second node depends on something that can fail, and tries again by itself before the run fails. */
     fun gameOver(desk: Desk, callKitchen: () -> String = BusyPhone()::call): CompiledGraph<Ticket> = StateGraph<Ticket> {
         val greet = node("greet") { ticket ->
             desk.work()
             ticket.copy(reply = "Hi ${ticket.customer}!")
         }
-        val kitchen = node(KITCHEN) { ticket ->
+        // A failed call is tried once more, a second later, before the run fails.
+        val kitchen = node(KITCHEN, retry = Retry(attempts = 2)) { ticket ->
             desk.work()
             ticket.copy(reply = "${ticket.reply} ${callKitchen()}")
         }

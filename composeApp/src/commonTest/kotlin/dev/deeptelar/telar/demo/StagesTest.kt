@@ -61,7 +61,7 @@ class StagesTest {
         stages.forEach { stage ->
             val graph = stage.graph(desk)
 
-            // The phone of stage 7 is busy on every other call, so a run that failed is run again.
+            // The phone of stage 7 is busy on two calls out of three, so a run that failed is run again.
             suspend fun replyTo(message: String): String {
                 val ticket = Ticket("Ana", message)
                 return runCatching { graph.invoke(ticket) }.getOrElse { graph.invoke(ticket) }.state.reply
@@ -162,6 +162,8 @@ class StagesTest {
 
         val failure = assertFailsWith<NodeExecutionException> { graph.invoke(ana, config) }
         assertEquals(HelpDesks.KITCHEN, failure.nodeName)
+        // The node tried a second time by itself before the run failed.
+        assertEquals(2, failure.attempts)
 
         assertEquals("Hi Ana! Your pizza is in the oven.", graph.resume(config).state.reply)
     }
