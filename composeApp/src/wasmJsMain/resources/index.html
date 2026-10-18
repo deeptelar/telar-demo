@@ -19,9 +19,62 @@
     <style>
         html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background: #040404; }
         @media (prefers-color-scheme: light) { html, body { background: #fff; } }
+        /* Shown until the game starts: main() removes it. */
+        #boot {
+            position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 12px; padding: 16px; box-sizing: border-box; text-align: center;
+            font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.12em;
+            color: #9a9a9a;
+        }
+        #boot p { margin: 0; max-width: 34em; letter-spacing: normal; }
+        #boot a { color: inherit; }
+        #boot .title { color: #e0e0e0; }
+        @media (prefers-color-scheme: light) { #boot { color: #6a6a6a; } #boot .title { color: #040404; } }
     </style>
-    <script type="application/javascript" src="composeApp.js"></script>
 </head>
 <body>
+<div id="boot"><div>LOADING PIXEL PIZZA…</div></div>
+<noscript><style>#boot { display: none; }</style><p style="color: #9a9a9a; text-align: center; font-family: monospace; padding: 16px;">Pixel Pizza needs JavaScript.</p></noscript>
+<script>
+    // The game is Kotlin/Wasm, which needs WebAssembly with garbage collection (WasmGC): Chrome and
+    // Edge 119, Firefox 120, Safari 18.2, or newer. Without it the page would stay blank, so say so
+    // instead, and do not download the game.
+    (function () {
+        function show(html) {
+            var boot = document.getElementById("boot");
+            if (boot) boot.innerHTML = html; // Once the game runs there is no #boot, and nothing to say.
+        }
+        function unsupported() {
+            show('<div class="title">PIXEL PIZZA NEEDS A NEWER BROWSER</div>' +
+                '<p>The game runs on Kotlin/Wasm, which needs Chrome or Edge 119, Firefox 120, Safari 18.2, or newer.</p>' +
+                '<p><a href="https://github.com/deeptelar/telar-demo">The code of the game</a> · ' +
+                '<a href="https://github.com/deeptelar/telar">Telar, the library it shows</a></p>');
+        }
+        // The smallest module with a GC type: a struct of one i8.
+        var gc = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]);
+        var supported;
+        try {
+            supported = typeof WebAssembly === "object" && WebAssembly.validate(gc);
+        } catch (e) {
+            supported = false;
+        }
+        if (!supported) {
+            unsupported();
+            return;
+        }
+        // A browser that passes the check but still cannot compile the game.
+        function compileFailure(error) {
+            if (error instanceof WebAssembly.CompileError || error instanceof WebAssembly.LinkError) unsupported();
+        }
+        window.addEventListener("unhandledrejection", function (event) { compileFailure(event.reason); });
+        window.addEventListener("error", function (event) { compileFailure(event.error); });
+        var script = document.createElement("script");
+        script.src = "composeApp.js";
+        script.onerror = function () {
+            show('<div class="title">PIXEL PIZZA DID NOT LOAD</div><p>Check the connection and reload the page.</p>');
+        };
+        document.body.appendChild(script);
+    })();
+</script>
 </body>
 </html>
