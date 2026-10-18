@@ -20,7 +20,7 @@ nodes to a full agent workflow. One Compose Multiplatform codebase runs it in th
 | 1 | A line | Two nodes in a row: `node`, `then`, `invoke` |
 | 2 | Choices | `conditionalEdge` picks one of three paths |
 | 3 | Loops | An edge that goes back until the reply passes a check |
-| 4 | Two at once | Fan-out to nodes with a `work` and an `update`, which run at the same time |
+| 4 | Two at once | Fan-out to nodes with a `work` and an `update`, which run at the same time, and a node that runs once for each dish of the order |
 | 5 | Save points | `interruptBefore` stops the run for you; `resume` continues it, also after a reload |
 | 6 | The agent | A model that calls tools, as a loop of two nodes |
 | 7 | Game over | A node with a `retry` tries again by itself, then fails; `resume` retries from the last save |

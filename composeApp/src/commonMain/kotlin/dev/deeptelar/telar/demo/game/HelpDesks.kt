@@ -118,20 +118,48 @@ object HelpDesks {
         return "your pizza left the oven"
     }
 
+    /** What the kitchen of stage 4 knows of each dish: how many moments it takes to look, and what it finds. */
+    private val dishes: Map<String, Pair<Int, String>> = mapOf(
+        "margherita" to (3 to "is in the oven"),
+        "pepperoni" to (1 to "left the oven"),
+        "salad" to (2 to "is being made"),
+    )
+
+    /** The dishes [message] names, in the order it names them, or a pizza when it names none. */
+    fun dishesIn(message: String): List<String> {
+        val text = message.lowercase()
+        return dishes.keys.filter { it in text }.sortedBy { text.indexOf(it) }.ifEmpty { listOf("pizza") }
+    }
+
+    /** A slow call to the kitchen about one [dish]. Some take longer to find than others. */
+    private suspend fun askKitchen(desk: Desk, dish: String): String {
+        val (moments, status) = dishes[dish] ?: (1 to "left the oven")
+        repeat(moments) { desk.work() }
+        return "your $dish $status"
+    }
+
     /** A slow call to the driver. */
     private suspend fun askDriver(desk: Desk): String {
         desk.work()
         return "the driver is 5 minutes away"
     }
 
-    /** Stage 4: two lookups run at the same time, and each then writes its fact into the ticket. */
+    /**
+     * Stage 4: two lookups run at the same time, and the kitchen asks about each dish of the order at
+     * the same time too. Each lookup then writes what it found into the ticket.
+     */
     fun parallel(desk: Desk): CompiledGraph<Ticket> = StateGraph<Ticket> {
+        // `forEach` lists the dishes, `work` runs once for each of them, all at the same time, and the
+        // block after it gets what was found in the order of the list.
+        val kitchen = node(KITCHEN, forEach = { dishesIn(it.message) }, work = { _, dish -> askKitchen(desk, dish) }) { ticket, facts ->
+            ticket.copy(facts = ticket.facts + facts)
+        }
         // `work` asks and returns what it found. The block after it writes that fact into the ticket.
-        val kitchen = node(KITCHEN, work = { askKitchen(desk) }) { ticket, fact -> ticket.copy(facts = ticket.facts + fact) }
         val driver = node("driver", work = { askDriver(desk) }) { ticket, fact -> ticket.copy(facts = ticket.facts + fact) }
         val answer = node("answer") { ticket ->
             desk.work()
-            ticket.copy(reply = "Hi ${ticket.customer}, ${ticket.facts.joinToString(" and ")}.")
+            val facts = if (ticket.facts.size < 2) ticket.facts.joinToString() else ticket.facts.dropLast(1).joinToString() + " and " + ticket.facts.last()
+            ticket.copy(reply = "Hi ${ticket.customer}, $facts.")
         }
 
         START then kitchen then answer

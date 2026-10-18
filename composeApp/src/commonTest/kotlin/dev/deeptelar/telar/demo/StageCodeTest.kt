@@ -70,10 +70,11 @@ class StageCodeTest {
     fun aNodeNamedByAConstantIsFound() {
         val kitchen = code(4, "kitchen")
 
-        assertTrue(kitchen.getValue("the node").contains("val kitchen = node(KITCHEN, work = { askKitchen(desk) })"))
-        assertTrue(kitchen.getValue("the node").startsWith("// `work` asks and returns what it found."), "a comment stays with its statement")
+        assertTrue(kitchen.getValue("the node").contains("val kitchen = node(KITCHEN, forEach = { dishesIn(it.message) }, work = { _, dish -> askKitchen(desk, dish) })"))
+        assertTrue(kitchen.getValue("the node").startsWith("// `forEach` lists the dishes,"), "a comment stays with its statement")
         assertEquals("START then kitchen then answer", kitchen.getValue("its arrows"))
-        assertTrue(kitchen.getValue("it uses").contains("private suspend fun askKitchen(desk: Desk): String {"))
+        assertTrue(kitchen.getValue("it uses").contains("private suspend fun askKitchen(desk: Desk, dish: String): String {"))
+        assertTrue(kitchen.getValue("it uses").contains("fun dishesIn(message: String): List<String> {"))
     }
 
     @Test

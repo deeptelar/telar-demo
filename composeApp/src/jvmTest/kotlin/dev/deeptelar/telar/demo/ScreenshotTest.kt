@@ -84,6 +84,13 @@ class ScreenshotTest {
         scope.advanceUntilIdle()
         shoot("stage-8-agent-clear", Screen.Play(8), height = 1900)
 
+        // Stage 4, halfway: the kitchen found the pepperoni and still looks for the margherita.
+        game.controller(4).play(Mail("Ana", "Where are my margherita and my pepperoni?"))
+        scope.advanceTimeBy(1_500)
+        shoot("stage-4-items", Screen.Play(4), height = 1100)
+        shoot("stage-4-items-phone", Screen.Play(4), width = 390, height = 1300)
+        scope.advanceUntilIdle()
+
         game.controller(3).play(Mail("Ana", "My pizza is late!"))
         scope.advanceUntilIdle()
         shoot("stage-3-clear", Screen.Play(3), height = 1700)

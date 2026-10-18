@@ -105,6 +105,10 @@ class StageController(
     var waitingAt: List<String> by mutableStateOf(emptyList())
         private set
 
+    /** How many items each node that runs for each item of a list has finished in this run. */
+    var itemsDone: Map<String, Int> by mutableStateOf(emptyMap())
+        private set
+
     /** The node that failed, when the phase is [Phase.GameOver]. */
     var failedNode: String? by mutableStateOf(null)
         private set
@@ -170,6 +174,7 @@ class StageController(
         ticketBefore = null
         visited = setOf(START)
         trail = emptySet()
+        itemsDone = emptyMap()
         log = emptyList()
         writing = ""
         step = 0
@@ -206,6 +211,7 @@ class StageController(
             checkpoints = emptyList()
             visited = emptySet()
             trail = emptySet()
+            itemsDone = emptyMap()
             waitingAt = emptyList()
             log = emptyList()
             writing = ""
@@ -266,6 +272,7 @@ class StageController(
         when (event) {
             is GraphEvent.NodeStarted -> {
                 active = active + event.node
+                itemsDone = itemsDone - event.node
                 arriveAt(event.node)
             }
             // A model node reports each piece of text while the model writes it. No stage has a graph
@@ -277,8 +284,11 @@ class StageController(
                 log = log + LogLine("TRY", "${event.node}: ${event.cause.message ?: event.cause}", Tone.Failed) +
                     LogLine("", "try ${event.attempt + 1} in ${event.pause}", Tone.Detail)
             }
-            // No stage has a node that runs for each item of a list; the node's state arrives with StepCompleted.
-            is GraphEvent.ItemCompleted -> Unit
+            // Each item is reported when it is done, so the slow ones come last. The ticket changes when the step ends.
+            is GraphEvent.ItemCompleted -> {
+                itemsDone = itemsDone + (event.node to (itemsDone[event.node] ?: 0) + 1)
+                log = log + LogLine(" #${event.item}", "${event.node}: ${event.result}", Tone.Detail)
+            }
             is GraphEvent.NodeCompleted -> {
                 active = active - event.node
                 visited = visited + event.node

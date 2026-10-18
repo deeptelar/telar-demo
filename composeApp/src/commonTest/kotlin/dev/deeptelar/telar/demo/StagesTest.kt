@@ -106,6 +106,20 @@ class StagesTest {
     }
 
     @Test
+    fun theKitchenLooksUpEachDishAndWritesWhatItFoundInTheOrderOfTheMessage() = runTest {
+        val ticket = HelpDesks.parallel(desk).invoke(Ticket("Ben", "Is my order close? A salad, a pepperoni and a margherita.")).state
+
+        assertEquals(
+            listOf("your salad is being made", "your pepperoni left the oven", "your margherita is in the oven", "the driver is 5 minutes away"),
+            ticket.facts,
+        )
+        assertEquals(
+            "Hi Ben, your salad is being made, your pepperoni left the oven, your margherita is in the oven and the driver is 5 minutes away.",
+            ticket.reply,
+        )
+    }
+
+    @Test
     fun theRunStopsBeforePayAndPaysWhatThePlayerDecides() = runTest {
         val graph = HelpDesks.savePoints(desk)
         val refund = Ticket("Ben", "My pizza arrived cold. I want a refund.")
