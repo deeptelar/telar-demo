@@ -89,10 +89,14 @@ val stages: List<Stage> = listOf(
     Stage(
         number = 4,
         title = "Two at once",
-        moves = "fan-out / work and update",
+        moves = "fan-out / work and update / forEach",
         briefing = "Asking the kitchen and the driver one after the other is slow, so both run in the same step. " +
-            "Their work happens at the same time, and each then writes its fact into the ticket, one after the other.",
-        inbox = listOf(delivery, Mail("Ben", "Is my order close?")),
+            "KITCHEN runs once for each dish of the order, all at the same time. Then each node writes what it " +
+            "found into the ticket, one after the other.",
+        inbox = listOf(
+            Mail("Ana", "Where are my margherita and my pepperoni?"),
+            Mail("Ben", "Is my order close? A salad, a pepperoni and a margherita."),
+        ),
         board = mapOf(
             START to Cell(0, 1),
             HelpDesks.KITCHEN to Cell(1, 0),
@@ -100,7 +104,6 @@ val stages: List<Stage> = listOf(
             "answer" to Cell(2, 1),
             END to Cell(3, 1),
         ),
-        readsMessage = false,
         function = "parallel",
         graph = HelpDesks::parallel,
     ),

@@ -132,6 +132,14 @@ fun Board(controller: StageController, modifier: Modifier = Modifier, selected: 
                             else -> TileLook.Idle
                         }
                         Tile(node, look, router = node in routers, selected = node == selected, onClick = { onSelect(node) }, Modifier.offset(tile.left.dp, tile.top.dp))
+                        if (node in controller.topology.forEachNodes) {
+                            val done = controller.itemsDone[node] ?: 0
+                            Label(
+                                if (done == 0) "for each" else "$done done",
+                                Modifier.offset(tile.left.dp, (tile.top - 18).dp),
+                                color = if (node in controller.active) colors.red else colors.dim,
+                            )
+                        }
                         if (node in controller.stage.pauseBefore) {
                             Label(
                                 "save point",

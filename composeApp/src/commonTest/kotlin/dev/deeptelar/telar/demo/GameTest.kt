@@ -95,10 +95,35 @@ class GameTest {
         assertTrue(stage.trail.containsAll(setOf(HelpDesks.KITCHEN to "answer", "driver" to "answer")))
         // Both nodes wrote into the ticket in that step, and no edge of this stage has a choice to make.
         assertEquals(
-            listOf("kitchen + driver", "facts += \"your pizza left the oven\"", "facts += \"the driver is 5 minutes away\""),
-            stage.log.take(3).map { it.text },
+            listOf(
+                "kitchen: your pizza left the oven",
+                "kitchen + driver",
+                "facts += \"your pizza left the oven\"",
+                "facts += \"the driver is 5 minutes away\"",
+            ),
+            stage.log.take(4).map { it.text },
         )
         assertFalse(stage.log.any { it.tag == CHOICE })
+    }
+
+    @Test
+    fun aNodeForEachItemReportsTheItemsAsTheyFinish() = runTest {
+        val stage = game().controller(4)
+
+        stage.play(Mail("Ana", "Where are my margherita and my pepperoni?"))
+        advanceTimeBy(1_500)
+
+        // The pepperoni takes one moment and the margherita three, so the second item is done first.
+        assertEquals(setOf(HelpDesks.KITCHEN), stage.active)
+        assertEquals(mapOf(HelpDesks.KITCHEN to 1), stage.itemsDone)
+        assertEquals(LogLine(" #1", "kitchen: your pepperoni left the oven", Tone.Detail), stage.log.single())
+
+        advanceUntilIdle()
+
+        assertEquals(mapOf(HelpDesks.KITCHEN to 2), stage.itemsDone)
+        assertEquals(listOf(" #1", " #0", "01"), stage.log.take(3).map { it.tag })
+        // The update got the facts in the order of the message, not in the order they were found.
+        assertEquals("Hi Ana, your margherita is in the oven, your pepperoni left the oven and the driver is 5 minutes away.", stage.ticket?.reply)
     }
 
     @Test

@@ -503,3 +503,39 @@ What the pass showed:
 - **A phone that fails by count is fragile with tries.** Its state lives in the graph of the stage,
   so after a reload a new phone starts counting again and the first retry of the run fails once
   more. That was so before this pass too, and the tries do not make it worse.
+
+## The fourteenth pass: a node for each dish
+
+`0.1.0-alpha12` runs one node once for each item of a list, all at the same time. This pass puts it
+into stage 4, "Two at once", rather than into a stage of its own: the stage already ran two nodes
+in the same step, and now the kitchen node also runs once for each dish the message names.
+
+What changed here: the kitchen node of stage 4 is `node(KITCHEN, forEach = { dishesIn(it.message) },
+work = { _, dish -> askKitchen(desk, dish) }) { ticket, facts -> ... }`. Each dish takes the kitchen
+a different time, so they are found out of order. The run log has a line for each
+`GraphEvent.ItemCompleted`, such as `#1 kitchen: your pepperoni left the oven`, and the board writes
+`for each` over the tile of every node of `GraphTopology.forEachNodes`, and how many items are done
+while it runs. The two mails of the stage name dishes, so the stage now reads the message: a
+message that names none asks about a pizza, as before. The full desk is unchanged.
+
+What was checked:
+
+- 125 tests pass on the JVM and 117 in headless Chrome (wasmJs). The new ones check that the facts
+  are written in the order of the message, and that the stage shows the second dish done before the
+  first.
+- The stage halfway through a run, at the width of a desktop and of a phone (390 dp).
+
+Not checked: the stage in a real browser.
+
+What the pass showed:
+
+- **The update needs no sorting.** The items finish in any order, and the block after `work` gets
+  the results in the order of the list. The game's only work was to show the order in which they
+  finished, which the events give.
+- **An event does not say how many items there are.** `ItemCompleted` has the position of the item,
+  but not the size of the list, so the board can say `1 done`, not `1 of 2`. The graph knows the
+  list: an event when the node starts, with the number of items, would let a screen draw progress.
+- **The code of the stage is no longer the code of the tutorial.** Level 4 of the tutorial has the
+  kitchen and the driver only. The stage still shows its own code under each tile.
+- **A node over several lines is not found by the game's code view.** It reads the name of a node
+  from the line that starts it, so the kitchen node stays on one long line.
