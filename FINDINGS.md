@@ -446,3 +446,30 @@ What the pass showed:
   from the page. The browser gives the same two words for all three, so the library cannot tell
   which it was, but a hint that lists them would help a reader who meets `Fail to fetch` for the
   first time.
+
+## The twelfth pass: three releases at once
+
+The game stayed on `0.1.0-alpha09` while the library released `0.1.0-alpha10`, `0.1.0-alpha11` and
+`0.1.0-alpha12`. This pass moved it to `0.1.0-alpha12` from Maven Central.
+
+What changed here: the version of the seven dependencies, and two branches in the `when` over the
+events of a stream, for `GraphEvent.NodeRetry` (`0.1.0-alpha10`) and `GraphEvent.ItemCompleted`
+(`0.1.0-alpha12`). No stage uses either: a retry clears the text the model was writing, and an item
+does nothing, because the state of the node arrives with the step.
+
+What was checked:
+
+- 123 tests pass on the JVM and 115 in headless Chrome (wasmJs). The pass added and removed none.
+- The browser bundle and the Android app build.
+- The file of `telar-core` that Gradle used has the checksum of the file on Maven Central.
+
+Not checked: a save point of the hosted game that was made with `0.1.0-alpha09` and continued with
+this version in a real browser, a call to a real model, and the Android app on a device.
+
+What the pass showed:
+
+- **Two new kinds of event, and the compiler named both.** Waiting three releases cost one error
+  message and two lines; a `when` with an `else` would have hidden both events.
+- **The game teaches by hand what the library now does for it.** Stage 7 fails on a busy phone so
+  that the player retries the run, and the tools of the agent in the full desk could now be saved
+  as effects. The game shows none of what the three releases added.

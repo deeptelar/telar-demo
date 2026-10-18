@@ -264,6 +264,10 @@ class StageController(
             // A model node reports each piece of text while the model writes it. No stage has a graph
             // inside a graph, but the text of a model in one would be read the same way.
             is GraphEvent.NodeProgress, is GraphEvent.SubgraphEvent -> event.textDelta?.let { writing += it }
+            // No stage gives a node tries of its own, but the next try would write the failed try's text again.
+            is GraphEvent.NodeRetry -> writing = ""
+            // No stage has a node that runs for each item of a list; the node's state arrives with StepCompleted.
+            is GraphEvent.ItemCompleted -> Unit
             is GraphEvent.NodeCompleted -> {
                 active = active - event.node
                 visited = visited + event.node
