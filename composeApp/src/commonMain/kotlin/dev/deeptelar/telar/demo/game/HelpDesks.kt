@@ -10,6 +10,8 @@ import dev.deeptelar.telar.agent.ChatMessage
 import dev.deeptelar.telar.agent.chatWithProgress
 import dev.deeptelar.telar.agent.toolLoop
 import dev.deeptelar.telar.demo.llm.Responder
+import dev.deeptelar.telar.reportProgress
+import dev.deeptelar.telar.serialization.effect
 
 /**
  * The graphs of the stages, one function each. They are the help desks of the Telar
@@ -173,15 +175,42 @@ object HelpDesks {
         ticket.copy(reply = "Sorry ${ticket.customer}, we cannot refund this order.")
     }
 
-    /** Stage 5: run it with `interruptBefore = setOf(PAY)`, so a human decides before money moves. */
-    fun savePoints(desk: Desk): CompiledGraph<Ticket> = StateGraph<Ticket> {
+    /** The bank of stage 5. It numbers its transfers, so a refund that was sent twice would show. */
+    class Bank {
+        var transfers: Int = 0
+            private set
+
+        suspend fun send(customer: String, euros: Int): String {
+            val transfer = "T-${++transfers}"
+            reportProgress("bank: $euros euros sent to $customer, transfer $transfer")
+            return transfer
+        }
+    }
+
+    /** The mail server of stage 5. It is busy on every other call, so PAY fails once after the money moved. */
+    class BusyMail {
+        private var calls = 0
+
+        fun send(customer: String, text: String) {
+            if (++calls % 2 == 1) error("the mail server is busy")
+        }
+    }
+
+    /**
+     * Stage 5: run it with `interruptBefore = setOf(PAY)`, so a human decides before money moves. PAY
+     * moves it once, however often PAY runs.
+     */
+    fun savePoints(desk: Desk, bank: Bank = Bank(), mail: BusyMail = BusyMail()): CompiledGraph<Ticket> = StateGraph<Ticket> {
         val prepare = node("prepare") { ticket ->
             desk.work()
             ticket.copy(refund = 12)
         }
-        val pay = node(PAY) { ticket ->
+        // A failed try runs PAY again. `effect` saves what its block returned, so the second try gets the
+        // transfer back instead of sending the money again.
+        val pay = node(PAY, retry = Retry(attempts = 2)) { ticket ->
             desk.work()
-            payOut(ticket)
+            val paid = if (ticket.approved) ticket.copy(transfer = effect("transfer") { bank.send(ticket.customer, ticket.refund) }) else ticket
+            payOut(paid).also { mail.send(it.customer, it.reply) }
         }
 
         START then prepare then pay then END

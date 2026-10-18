@@ -352,6 +352,7 @@ private fun TicketSpecs(ticket: Ticket, paid: Boolean) {
     if (ticket.chat.isNotEmpty()) Spec("chat", "${ticket.chat.size} messages")
     if (ticket.refund > 0) Spec("refund", "${ticket.refund} euros")
     if (paid) Spec("approved", if (ticket.approved) "yes" else "no")
+    if (ticket.transfer.isNotEmpty()) Spec("transfer", ticket.transfer)
     if (ticket.attempts > 0) Spec("attempts", ticket.attempts.toString())
     if (ticket.problem.isNotEmpty()) Spec("problem", ticket.problem, valueColor = Theme.colors.red)
     if (ticket.reply.isNotEmpty()) Spec("reply", ticket.reply)

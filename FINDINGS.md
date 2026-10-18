@@ -539,3 +539,38 @@ What the pass showed:
   kitchen and the driver only. The stage still shows its own code under each tile.
 - **A node over several lines is not found by the game's code view.** It reads the name of a node
   from the line that starts it, so the kitchen node stays on one long line.
+
+## The fifteenth pass: a refund that is paid once
+
+`effect` of `0.1.0-alpha10` runs a side effect once for the step of its node and saves its result
+in the checkpoint. This pass puts it into stage 5, "Save points", where money moves.
+
+What changed here: after the player approves, PAY sends the refund through a bank and then mails a
+receipt. The bank call is `effect("transfer") { bank.send(...) }`, and the bank numbers its
+transfers. The mail server is busy on every other call, so the first try of PAY fails after the money
+moved, and PAY, which now has `retry = Retry(attempts = 2)`, runs again. The second try gets the
+saved transfer back and the bank is not called again. The ticket has a new field, `transfer`, and
+the run log has an `OUT` line for each text a node reports with `reportProgress`: the bank reports
+the transfer, so the log shows it once. The full desk is unchanged.
+
+What was checked:
+
+- 126 tests pass on the JVM and 118 in headless Chrome (wasmJs), where the game saves runs with
+  `LocalStorageCheckpointer`. The new test runs the graph of the stage with a bank of its own and
+  finds one transfer, `T-1`, after PAY ran twice. The log of the stage shows the bank line once,
+  then the failed try, then the step of PAY with `transfer = "T-1"`.
+- The stage after the approval, at the width of a desktop and of a phone (390 dp).
+
+Not checked: the stage in a real browser, and a page reloaded between the transfer and the mail,
+which the saved effect should also cover.
+
+What the pass showed:
+
+- **An effect is only seen when it is not repeated.** Without the failing mail the stage would look
+  the same with or without `effect`. The stage needed a failure after the payment to show what the
+  effect saves, and a bank that counts to show that nothing was paid twice.
+- **Nothing in the stream says that an effect was given back.** The game shows the effect by what
+  is missing: the second try has no bank line. An event, or a line of the observer, for a saved
+  result that was returned would make the saving itself visible.
+- **`reportProgress` is a way to show what a node did outside the run.** Until now the game read
+  only the text of a model from it; a line of plain text is enough for the bank.

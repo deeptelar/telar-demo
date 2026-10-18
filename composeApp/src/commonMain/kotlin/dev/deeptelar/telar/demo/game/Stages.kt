@@ -110,9 +110,10 @@ val stages: List<Stage> = listOf(
     Stage(
         number = 5,
         title = "Save points",
-        moves = "interruptBefore / resume",
+        moves = "interruptBefore / resume / effect",
         briefing = "Money is about to move, so the run stops before PAY and waits for you. It is saved: " +
-            "reload the page or close the app, and the ticket is still waiting for your decision.",
+            "reload the page or close the app, and the ticket is still waiting for your decision. Then the " +
+            "receipt mail fails and PAY runs again, but the bank pays once: the transfer is an effect.",
         inbox = listOf(refund, Mail("Cleo", "Wrong toppings again. Refund, please.")),
         board = row("prepare", HelpDesks.PAY),
         pauseBefore = setOf(HelpDesks.PAY),

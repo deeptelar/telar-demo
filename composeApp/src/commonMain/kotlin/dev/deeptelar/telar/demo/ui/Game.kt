@@ -277,7 +277,11 @@ class StageController(
             }
             // A model node reports each piece of text while the model writes it. No stage has a graph
             // inside a graph, but the text of a model in one would be read the same way.
-            is GraphEvent.NodeProgress, is GraphEvent.SubgraphEvent -> event.textDelta?.let { writing += it }
+            is GraphEvent.NodeProgress, is GraphEvent.SubgraphEvent -> {
+                event.textDelta?.let { writing += it }
+                // A node reports what it did outside the run, such as a payment, as a line of text.
+                ((event as? GraphEvent.NodeProgress)?.value as? String)?.let { log = log + LogLine("OUT", it) }
+            }
             is GraphEvent.NodeRetry -> {
                 // The next try writes its text from the start.
                 writing = ""

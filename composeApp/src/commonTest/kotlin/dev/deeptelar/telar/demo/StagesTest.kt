@@ -137,6 +137,20 @@ class StagesTest {
     }
 
     @Test
+    fun theBankPaysARefundOnceAlthoughPayRunsTwice() = runTest {
+        val bank = HelpDesks.Bank()
+        val graph = HelpDesks.savePoints(desk, bank)
+        val config = pausingBeforePay()
+
+        graph.invoke(Ticket("Ben", "My pizza arrived cold. I want a refund."), config)
+        val paid = graph.resume(config) { it.copy(approved = true) }.state
+
+        // The receipt mail failed after the transfer, so `pay` ran again and got the saved transfer back.
+        assertEquals("T-1", paid.transfer)
+        assertEquals(1, bank.transfers)
+    }
+
+    @Test
     fun theAgentAsksAToolAndAnswersWithItsResult() = runTest {
         val ticket = Agent.graph(desk).invoke(ana).state
 
@@ -230,6 +244,7 @@ class StagesTest {
             chat = listOf(ChatMessage.User("Hi")),
             refund = 12,
             approved = true,
+            transfer = "T-1",
             reply = "Hi Ana!",
             attempts = 1,
             problem = "say sorry",
@@ -241,6 +256,7 @@ class StagesTest {
                 "facts += \"your pizza left the oven\"",
                 "chat += 1 message",
                 "refund = 12",
+                "transfer = \"T-1\"",
                 "attempts = 1",
                 "problem = \"say sorry\"",
                 "reply = \"Hi Ana!\"",

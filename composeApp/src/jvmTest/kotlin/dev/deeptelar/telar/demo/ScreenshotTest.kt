@@ -104,6 +104,12 @@ class ScreenshotTest {
         shoot("stage-5-live-phone", Screen.Play(5), width = 390, height = 3400)
         game.inspect(false)
 
+        // Stage 5, approved: the receipt mail failed after the transfer, and the second try of PAY did not pay again.
+        game.controller(5).decide(approved = true)
+        scope.advanceUntilIdle()
+        shoot("stage-5-paid", Screen.Play(5), height = 1400)
+        shoot("stage-5-paid-phone", Screen.Play(5), width = 390, height = 1900)
+
         // Stage 6, after the tools ran: the model is halfway through writing its answer.
         game.controller(6).play(Mail("Ben", "How much is a margherita and a cola?"))
         scope.advanceTimeBy(2_800)
