@@ -108,6 +108,10 @@ class StageController(
     /** The node that failed, when the phase is [Phase.GameOver]. */
     var failedNode: String? by mutableStateOf(null)
         private set
+
+    /** How often [failedNode] was tried before the run failed. More than once for a node with a `retry`. */
+    var failedTries: Int by mutableStateOf(0)
+        private set
     var error: String? by mutableStateOf(null)
         private set
     var log: List<LogLine> by mutableStateOf(emptyList())
@@ -208,6 +212,7 @@ class StageController(
             step = 0
             error = null
             failedNode = null
+            failedTries = 0
             restored = false
         }
     }
@@ -218,6 +223,7 @@ class StageController(
         restored = false
         error = null
         failedNode = null
+        failedTries = 0
         waitingAt = emptyList()
         job = scope.launch {
             var outcome: Phase? = null
@@ -237,6 +243,7 @@ class StageController(
             } catch (e: Exception) {
                 outcome = Phase.GameOver
                 failedNode = (e as? NodeExecutionException)?.nodeName
+                failedTries = (e as? NodeExecutionException)?.attempts ?: 0
                 error = (if (e is NodeExecutionException) e.cause?.message else null) ?: e.message ?: e.toString()
                 log = log + LogLine("ERR", failedNode?.let { "$it: $error" } ?: error.orEmpty(), Tone.Failed)
             } finally {
@@ -264,8 +271,12 @@ class StageController(
             // A model node reports each piece of text while the model writes it. No stage has a graph
             // inside a graph, but the text of a model in one would be read the same way.
             is GraphEvent.NodeProgress, is GraphEvent.SubgraphEvent -> event.textDelta?.let { writing += it }
-            // No stage gives a node tries of its own, but the next try would write the failed try's text again.
-            is GraphEvent.NodeRetry -> writing = ""
+            is GraphEvent.NodeRetry -> {
+                // The next try writes its text from the start.
+                writing = ""
+                log = log + LogLine("TRY", "${event.node}: ${event.cause.message ?: event.cause}", Tone.Failed) +
+                    LogLine("", "try ${event.attempt + 1} in ${event.pause}", Tone.Detail)
+            }
             // No stage has a node that runs for each item of a list; the node's state arrives with StepCompleted.
             is GraphEvent.ItemCompleted -> Unit
             is GraphEvent.NodeCompleted -> {

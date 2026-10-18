@@ -26,6 +26,7 @@ import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.kitchen.Blueprint
 import dev.deeptelar.telar.demo.storage.MemoryStore
 import dev.deeptelar.telar.demo.ui.Game
+import dev.deeptelar.telar.demo.ui.LogLine
 import dev.deeptelar.telar.demo.ui.Medal
 import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.Rush
@@ -180,6 +181,7 @@ class GameTest {
         assertEquals(Phase.GameOver, stage.phase)
         assertEquals(HelpDesks.KITCHEN, stage.failedNode)
         assertEquals("the kitchen phone is busy", stage.error)
+        assertEquals(2, stage.failedTries)
         assertEquals(listOf(HelpDesks.KITCHEN), stage.waitingAt)
         assertEquals(Tone.Failed, stage.log.last().tone)
         assertEquals(emptySet(), game.cleared)
@@ -190,8 +192,9 @@ class GameTest {
         assertEquals(Phase.Clear, stage.phase)
         assertNull(stage.failedNode)
         assertEquals("Hi Ana! Your pizza is in the oven.", stage.ticket?.reply)
-        // The retry did not run `greet` again.
-        assertEquals(listOf("01", "ERR", "02", "END"), stage.log.map { it.tag }.filter { it.isNotEmpty() })
+        // The node tried again by itself once, and the retry of the run did not run `greet` again.
+        assertEquals(listOf("01", "TRY", "ERR", "02", "END"), stage.log.map { it.tag }.filter { it.isNotEmpty() })
+        assertEquals(LogLine("", "try 2 in 1s", Tone.Detail), stage.log[stage.log.indexOfFirst { it.tag == "TRY" } + 1])
     }
 
     @Test
