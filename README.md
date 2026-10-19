@@ -187,6 +187,8 @@ of Telar, copied into `kitchen/`. The board is not part of the sample.
 
 The browser version is at <https://deeptelar.github.io/telar-demo/>. Every push to
 `main` publishes it there.
+It needs a browser with WebAssembly garbage collection: Chrome or Edge 119, Firefox 120, Safari
+18.2, or newer. An older browser gets a page that says so instead of a blank one.
 
 To run it from a clone of this repository:
 
