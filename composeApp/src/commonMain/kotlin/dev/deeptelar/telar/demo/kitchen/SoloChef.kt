@@ -20,7 +20,7 @@ data class Shift(
     override val kitchen: Kitchen,
     override val tokenBudget: Int,
     val messages: List<ChatMessage> = emptyList(),
-    override val tokens: TokenUsage = TokenUsage(0, 0),
+    override val tokens: TokenUsage = TokenUsage(),
     override val answers: Int = 0,
     override val log: List<Event> = emptyList(),
 ) : Service {
@@ -81,9 +81,11 @@ val SOLO_CHEF: String =
  * chef what happened. The loop ends when the kitchen closes, when every order is served, or when
  * the chef has used its token budget.
  *
- * This is the loop of `toolLoop`, written by hand for two reasons: the tools change the state of
- * the run, which a tool of `toolLoop` cannot reach, and they must run in order, where `toolLoop`
- * runs the calls of one answer in parallel.
+ * This is the loop of `toolLoop`, written by hand, because a shift needs what `toolLoop` does not
+ * do: it goes on when the chef calls no tool, until the kitchen closes, and it tells the chef the
+ * news of the kitchen after the last tool. What else it does, `toolLoop` does as well: tools that
+ * change the state of the run and run in order (`stateTools`), a count of the tokens
+ * (`countTokens`) and an end when a budget is used (`stopWhen`).
  *
  * The chef gets the whole conversation with every answer, so each answer costs more than the one
  * before. [line] is a kitchen that does not.

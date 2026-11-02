@@ -15,6 +15,7 @@ import dev.deeptelar.telar.demo.game.Ticket
 import dev.deeptelar.telar.demo.game.changesSince
 import dev.deeptelar.telar.demo.game.scriptedModel
 import dev.deeptelar.telar.demo.game.stages
+import dev.deeptelar.telar.test.test
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -28,6 +29,17 @@ class StagesTest {
 
     private fun pausingBeforePay() =
         GraphConfig(threadId = "t", checkpointer = MemoryCheckpointer<Ticket>(), interruptBefore = setOf(HelpDesks.PAY))
+
+    @Test
+    fun aSavePointIsAStopOnThePathOfTheRun() = runTest {
+        HelpDesks.savePoints(desk).test(Ticket("Ben", "My pizza arrived cold."), pausingBeforePay()) {
+            expectNode("prepare")
+            expectInterruptBefore(HelpDesks.PAY) { assertEquals(12, it.refund) }
+            resumeWith { it.copy(approved = true) }
+            expectNode(HelpDesks.PAY)
+            expectFinished { assertEquals("Sorry Ben! We sent you 12 euros.", it.reply) }
+        }
+    }
 
     @Test
     fun everyBoardPlacesEachNodeOfItsGraphOnACellOfItsOwn() {
