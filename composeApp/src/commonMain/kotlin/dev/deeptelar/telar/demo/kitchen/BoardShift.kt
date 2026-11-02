@@ -2,6 +2,7 @@ package dev.deeptelar.telar.demo.kitchen
 
 import dev.deeptelar.telar.CompiledGraph
 import dev.deeptelar.telar.NodeRef
+import dev.deeptelar.telar.Retry
 import dev.deeptelar.telar.START
 import dev.deeptelar.telar.StateGraph
 import dev.deeptelar.telar.agent.ChatMessage
@@ -133,7 +134,11 @@ val READER_WITH_BOOK: String =
  */
 fun Blueprint.graph(models: (PieceKind) -> ChatModel): CompiledGraph<Slip> =
     StateGraph<Slip> {
-        val nodes = pieces.associate { piece -> piece.id to node(piece.id) { slip -> slip.at(piece, models) } }
+        // One answer that does not come must not end a whole shift, so a station that asks a model asks again.
+        val nodes =
+            pieces.associate { piece ->
+                piece.id to node(piece.id, retry = if (piece.kind.asks) Retry(attempts = 3) else null) { slip -> slip.at(piece, models) }
+            }
 
         fun ref(id: String): NodeRef = if (id == Blueprint.KITCHEN) NodeRef.END else nodes.getValue(id)
 

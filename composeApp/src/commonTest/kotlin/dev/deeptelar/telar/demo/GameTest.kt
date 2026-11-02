@@ -32,6 +32,7 @@ import dev.deeptelar.telar.demo.ui.Phase
 import dev.deeptelar.telar.demo.ui.Rush
 import dev.deeptelar.telar.demo.ui.Tone
 import dev.deeptelar.telar.serialization.CheckpointCodec
+import dev.deeptelar.telar.test.ScriptedChatModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -333,7 +334,8 @@ class GameTest {
     @Test
     fun aRetryDoesNotReportAChoiceTwice() = runTest {
         var calls = 0
-        val flaky = ChatModel { if (++calls == 1) throw ChatModelException("offline") else scriptedModel().chat(it) }
+        // Three failures: the node asks three times before the run fails.
+        val flaky = ChatModel { if (++calls <= 3) throw ChatModelException("offline") else scriptedModel().chat(it) }
         val stage = Game(flaky, store, saves, this, workMillis = 0).controller(8)
 
         stage.play(Mail("Dan", "Thanks for the pizza!"))
@@ -345,6 +347,59 @@ class GameTest {
 
         assertEquals(Phase.Clear, stage.phase)
         assertEquals(1, stage.log.count { it.text == "the edge after read picked write" })
+    }
+
+    @Test
+    fun aModelThatFailsOnceIsAskedAgainWithoutGameOver() = runTest {
+        val model = ScriptedChatModel {
+            fails("API error 529: Overloaded", partialText = "Hi Da")
+            says("Hi Dan, a colleague will reply soon.")
+        }
+        val stage = Game(model, store, saves, this, workMillis = 0).controller(8)
+
+        stage.play(Mail("Dan", "Thanks for the pizza!"))
+        advanceTimeBy(500)
+
+        // In the pause before the next try: the words of the failed try are gone, and the log says why.
+        assertTrue(stage.running)
+        assertEquals("", stage.writing)
+        assertEquals(
+            listOf(
+                LogLine("TRY", "write: API error 529: Overloaded", Tone.Failed),
+                LogLine("", "try 2 in 1s", Tone.Detail),
+            ),
+            stage.log.takeLast(2),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(Phase.Clear, stage.phase)
+        assertEquals("Hi Dan, a colleague will reply soon.", stage.ticket?.reply)
+    }
+
+    @Test
+    fun aDecisionSurvivesAStopBeforeTheMoneyMoved() = runTest {
+        val game = game()
+        val stage = game.controller(5)
+        stage.play(refund)
+        advanceUntilIdle()
+        assertEquals(Phase.SavePoint, stage.phase)
+
+        stage.decide(approved = true)
+        advanceTimeBy(500)
+        assertEquals(setOf(HelpDesks.PAY), stage.active)
+        stage.stop()
+        advanceUntilIdle()
+
+        // `resume` saves its update before the step runs, so the answer of the player is in the save.
+        assertEquals(true, stage.ticket?.approved)
+        assertEquals(listOf(HelpDesks.PAY), stage.waitingAt)
+
+        stage.retry()
+        advanceUntilIdle()
+
+        assertEquals(Phase.Clear, stage.phase)
+        assertEquals("Sorry Ben! We sent you 12 euros.", stage.ticket?.reply)
     }
 
     @Test

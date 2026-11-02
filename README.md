@@ -235,6 +235,9 @@ and the Android app have no such limit.
   `LocalStorageCheckpointer` in the browser, `FileCheckpointer` on the desktop and on Android. That
   is why a ticket waiting for your decision survives a reload, and why a failed run can be retried
   from the node that failed.
+- **A call to a model is tried again.** The nodes that ask a model have a
+  `retry = Retry(attempts = 3)`, so a busy service does not end a stage or a shift. Only when the
+  third try fails is it game over.
 - **The look is drawn, not themed.** Black, white, a ramp of greys and one red, after
   [nothing.tech](https://nothing.tech). The headings are a 5 by 7 dot-matrix alphabet in
   [`ui/DotMatrix.kt`](composeApp/src/commonMain/kotlin/dev/deeptelar/telar/demo/ui/DotMatrix.kt), the

@@ -6,6 +6,7 @@ import dev.deeptelar.telar.GraphEdge
 import dev.deeptelar.telar.START
 import dev.deeptelar.telar.agent.ChatMessage
 import dev.deeptelar.telar.agent.ChatModel
+import dev.deeptelar.telar.agent.ChatModelException
 import dev.deeptelar.telar.agent.ChatRequest
 import dev.deeptelar.telar.agent.ChatResponse
 import dev.deeptelar.telar.demo.kitchen.BOARD_STEPS
@@ -168,6 +169,24 @@ class KitchenBoardTest {
     }
 
     @Test
+    fun aStationAsksItsModelAgainWhenAnAnswerDoesNotCome() = runTest {
+        val stations = scriptedStations()
+        var calls = 0
+        val flaky: (PieceKind) -> ChatModel = { kind ->
+            ChatModel { request ->
+                if (++calls == 1) throw ChatModelException("API error 529: Overloaded")
+                stations(kind).chat(request)
+            }
+        }
+
+        val slip = boardWith(PieceKind.READER).graph(flaky).invoke(Slip(8, table = 8, words = "A pepperoni.")).state
+
+        assertEquals(2, calls)
+        assertEquals(MENU.getValue("pepperoni"), slip.ticket)
+        assertEquals(1, slip.desks.getValue("reader").answers, "the try that failed is no answer")
+    }
+
+    @Test
     fun everyOrderIsOneRunOfTheGraphOfTheBoard() = runTest {
         val graph = BEST_BOARD.graph(scriptedStations())
 
@@ -197,8 +216,8 @@ class KitchenBoardTest {
                 val onlyMenu = node("onlyMenu") { it }
                 val lookup = node("lookup") { slip -> slip.lookUp() }
                 val looksBack = node("looksBack") { it }
-                val bookReader = node("bookReader") { slip -> slip.read(model, withBook = true) }
-                val reader = node("reader") { slip -> slip.read(model) }
+                val bookReader = node("bookReader", retry = Retry(attempts = 3)) { slip -> slip.read(model, withBook = true) }
+                val reader = node("reader", retry = Retry(attempts = 3)) { slip -> slip.read(model) }
 
                 START then onlyMenu
                 conditionalEdge(onlyMenu, targets = setOf(lookup, looksBack)) { slip ->
@@ -269,7 +288,7 @@ class KitchenBoardTest {
         assertTrue("val READER_ALONE: String =" in reader && "READER_WITH_BOOK: String" !in reader, reader)
         // The rules of the reader name the rules of the menu, and those the menu: each is there, in that order.
         assertTrue(listOf("val READER_ALONE", "private val READER_RULES", "val MENU_RULES", "val MENU:").map { reader.indexOf(it) }.let { it == it.sorted() && it.first() > 0 }, reader)
-        assertEquals("val bookReader = node(\"bookReader\") { slip -> slip.read(model, withBook = true) }", parts(BEST_BOARD, "bookReader")["the node"])
+        assertEquals("val bookReader = node(\"bookReader\", retry = Retry(attempts = 3)) { slip -> slip.read(model, withBook = true) }", parts(BEST_BOARD, "bookReader")["the node"])
         assertTrue("val READER_WITH_BOOK: String =" in parts(BEST_BOARD, "bookReader").getValue("it uses"))
 
         // The rail is START and has no node.
@@ -281,7 +300,7 @@ class KitchenBoardTest {
 
         // A tile without arrows says so, and a sorter has no conditional edge before both of its arrows are drawn.
         val begun = Blueprint().place(0, PieceKind.ONLY_MENU).place(1, PieceKind.READER).connect("onlyMenu", Exit.YES, "reader")
-        assertEquals("val reader = node(\"reader\") { slip -> slip.read(model) }", parts(begun, "reader")["the node"])
+        assertEquals("val reader = node(\"reader\", retry = Retry(attempts = 3)) { slip -> slip.read(model) }", parts(begun, "reader")["the node"])
         listOf("reader", "onlyMenu", RAIL, KITCHEN).forEach { assertEquals("// No arrow yet.", parts(begun, it).values.first { code -> !code.startsWith("val ") }, it) }
 
         // Every statement of a tile is one of the whole graph.
