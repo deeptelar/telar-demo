@@ -1,0 +1,2 @@
+{"version":1,"state":"{\"customer\":\"Ana\",\"message\":\"Where is my pizza?\"}","nextNodes":["assistant"],"step":0,"interruptedBefore":false}
+{"version":1,"state":"{\"customer\":\"Ana\",\"message\":\"Where is my pizza?\",\"chat\":[{\"type\":\"user\",\"text\":\"Customer: Ana\\nMessage: Where is my pizza?\"},{\"type\":\"assistant\",\"toolCalls\":[{\"id\":\"toolu_scripted_status\",\"name\":\"order_status\",\"input\":{\"customer\":\"Ana\"}}]}]}","nextNodes":["tools"],"step":1,"interruptedBefore":true}

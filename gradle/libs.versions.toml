@@ -1,12 +1,12 @@
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 compose = "1.12.1"
 agp = "9.4.1"
 androidx-activity = "1.13.0"
 coroutines = "1.11.0"
-serialization = "1.11.0"
+serialization = "1.12.0"
 ktor = "3.6.0"
-telar = "0.1.0-alpha12"
+telar = "0.1.0-alpha16"
 
 [libraries]
 telar-core = { module = "dev.deeptelar:telar-core", version.ref = "telar" }
@@ -14,6 +14,7 @@ telar-agent = { module = "dev.deeptelar:telar-agent", version.ref = "telar" }
 telar-anthropic = { module = "dev.deeptelar:telar-anthropic", version.ref = "telar" }
 telar-openai = { module = "dev.deeptelar:telar-openai", version.ref = "telar" }
 telar-serialization = { module = "dev.deeptelar:telar-serialization", version.ref = "telar" }
+telar-test = { module = "dev.deeptelar:telar-test", version.ref = "telar" }
 telar-checkpoint-file = { module = "dev.deeptelar:telar-checkpoint-file", version.ref = "telar" }
 telar-checkpoint-browser = { module = "dev.deeptelar:telar-checkpoint-browser", version.ref = "telar" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose" }

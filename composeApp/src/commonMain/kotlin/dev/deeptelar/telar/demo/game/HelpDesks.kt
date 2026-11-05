@@ -276,7 +276,7 @@ object HelpDesks {
         val driver = node("driver", work = { askDriver(desk) }) { ticket, fact -> ticket.copy(facts = ticket.facts + fact) }
 
         // Every reply is written and checked, and rewritten if the check finds a problem.
-        val write = node("write") { ticket ->
+        val write = node("write", retry = Retry(attempts = 3)) { ticket ->
             // In a run that is watched, the model streams and the run log shows the reply while it is written.
             val reply = desk.model.chatWithProgress(writerPrompt(ticket), WRITER_SYSTEM)
             ticket.copy(reply = reply.trim(), attempts = ticket.attempts + 1)
@@ -312,6 +312,7 @@ object HelpDesks {
             firstMessage = Agent::opening,
             system = Agent.MENU_SYSTEM,
             then = send,
+            retry = Retry(attempts = 3),
         )
 
         START then read

@@ -574,3 +574,91 @@ What the pass showed:
   result that was returned would make the saving itself visible.
 - **`reportProgress` is a way to show what a node did outside the run.** Until now the game read
   only the text of a model from it; a line of plain text is enough for the bank.
+
+## The sixteenth pass: four releases that ask for almost nothing
+
+`0.1.0-alpha16` came four releases after the one the game was on. `0.1.0-alpha13` signs with a new
+key, `0.1.0-alpha14` puts images and PDFs in messages, `0.1.0-alpha15` has the two breaking changes
+and pauses in subgraphs, and `0.1.0-alpha16` has prompt caching and `keepLast`. This pass moved the
+game to the release from Maven Central and went through the changelog back to `0.1.0-alpha10`, to
+see what the game still does by hand. The tutorial and the kitchen sample of the library were
+compared with the game as well, because the stages and `kitchen/` follow them.
+
+What changed here:
+
+- The version of the seven dependencies. Kotlin is `2.4.21` and kotlinx.serialization `1.12.0`, as
+  the library is built with.
+- The nodes that ask a model have `retry = Retry(attempts = 3)`: the agent of stages 6 and 8, the
+  writer of stage 8 and the readers of the board. Before, one answer that did not come ended a
+  stage, or a shift of twelve orders. Stages 5 and 7 had their retries already. The code a tile shows
+  has the retry too, and the board's `Blueprint.code()` writes it.
+- `TokenUsage.plus` of the game is gone, because the class has it since `0.1.0-alpha10`. `spent`
+  reads `total`.
+- The comment on `soloChef` said that a tool of `toolLoop` cannot reach the state and that it runs
+  its calls in parallel. Neither has been true since `0.1.0-alpha10`. It has the sample's text now.
+- `telar-test` is a test dependency. The new tests use its `ScriptedChatModel` and `graph.test`.
+
+What was checked:
+
+- 133 tests pass on the JVM and 122 in headless Chrome (wasmJs), from 126 and 118. Three of the
+  seven new ones only run on the JVM, because they read files.
+- The browser bundle and the Android app build, and `yarn.lock` did not change.
+- The 22 files of the library that Gradle used have the checksums of the files on Maven Central. The
+  signature of `telar-core` is by the new key.
+- A build of the game with `0.1.0-alpha12` saved three runs to files, and this build continues
+  each to the end: stage 5 at its save point, stage 6 stopped before its tool ran, and stage 5 ended
+  in the pause after the bank paid and the mail failed. That last save holds the transfer as an
+  effect, in version 3 of the format. The bank is not called again, which closes what the fifteenth
+  pass left open, for the files of the desktop and Android. The three files are in the tests now.
+- The JVM run draws stage 6 with the retry in the code of its tile. The longer line of a reader on
+  the board is covered by a test and was not looked at on a screen.
+
+Not checked: a call to any real service, so no retry of a real failure, and no prompt or answer of a
+model with this release. A save in `localStorage` from before the move. The hosted game in a real
+browser, and the Android app on a device.
+
+What was looked at and left as it is:
+
+- **The breaking changes did not reach the game.** No name of a node holds a `/`: a station is named
+  after its kind and a number. The game has no reducer and no `mergeRules`, so their new order
+  changes nothing.
+- **Prompt caching stays off.** The part of a request that repeats is the tools and the system
+  prompt, about 330 tokens for a reader and 200 for the agent, by the game's guess of a quarter of the
+  characters. The largest request of a rush is about 510, and the smallest prompt Claude keeps is 512
+  tokens on the newest models and 4096 on Haiku 4.5. The book would not profit either. It is one message
+  that is new every time, so a cache would pay to keep it and never read it. Making that work
+  means a conversation for the reader, and the puzzle is that the book costs more with every order.
+- **`keepLast` has nothing to shorten.** A conversation in the game is one ticket of a help desk,
+  three messages long with the scripted model and a few rounds with a real one. A reader on the
+  board has one message.
+- **`GraphSession` does not replace `StageController`.** A session would take over the job, the
+  phase and reading the save. What the controller is mostly for stays: the log, the arrows and the
+  panel are drawn from the events one by one. It also tells a save point from a run that was
+  stopped, and throws a save of an older game away. That is a rewrite of tested code for
+  nothing a player sees.
+- **Stage 8 keeps `look_up`.** `conditionalFanOut` could start the two lookups without that node, but
+  level 8 of the tutorial still has it and explains it, and the stage says it follows that level.
+- **`soloChef` keeps its loop by hand.** As the sample says, a shift goes on when the chef calls no
+  tool, and `toolLoop` does not.
+
+What the pass showed:
+
+- **Four releases took no change to compile.** The new events were all there by `0.1.0-alpha12`.
+  What needed a person had no error to give: a comment that was no longer true, and a place for a
+  retry that nobody asked for.
+- **`ChatModelException` does not say what kind of failure it is.** It has a message and no status, so
+  a `retryOn` can only read the text to tell a 529 from a 401. The game retries every failure, and
+  a key that is not valid reaches game over three seconds later than it did. A refused request is
+  asked again too. A status on the exception would let an app keep its tries for what can pass.
+- **A saved effect went from one version to the next as it was.** The key `pay/transfer` and the
+  format are the same, so a run that stopped with the money moved goes on without moving it again.
+- **Stage 5 can tell a customer that a paid refund was refused.** This is older than the pass and the
+  run showed it with the third save. A run that stops after the transfer waits before PAY again, so
+  the game shows the save point. PAY only reads the effect when the ticket is approved, so a
+  player who then denies gets "we cannot refund this order", with the transfer already sent. The
+  stage needs its decision to be final once the bank was called. This pass does not change that.
+- **The new fields of the library show in the game.** Show JSON + saves prints every field, so a
+  message now has `attachments` and a tool call `invalidInput`, empty as they are. That is what the
+  panel promises, so it stays.
+- **A save does not go back to an older build.** The tools of stages 6 and 8 now run as effects, and
+  a checkpoint with effects is version 3 of the format, which versions before `0.1.0-alpha10` refuse.

@@ -139,6 +139,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.telar.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }

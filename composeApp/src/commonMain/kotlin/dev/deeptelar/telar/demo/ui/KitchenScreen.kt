@@ -803,7 +803,7 @@ private fun Stations(controller: KitchenController, shift: BoardShift) {
     Panel("Stations", Modifier.fillMaxWidth(), trailing = { if (!compact) Label("one run of the graph for each order") }) {
         asking.forEach { piece ->
             val desk = shift.stations[piece.id] ?: Desk()
-            StationSpec(piece.kind.sprite, piece.kind.tile, "${(desk.tokens.inputTokens + desk.tokens.outputTokens).grouped()} tokens in ${desk.answers} answers")
+            StationSpec(piece.kind.sprite, piece.kind.tile, "${desk.tokens.total.grouped()} tokens in ${desk.answers} answers")
         }
         if (asking.isEmpty()) Spec("board", "No station of this board asks a model.", colors.dim)
         StationSpec(Sprites.chefHat, "prep", "makes what the tickets say. Plain code, no tokens.", colors.dim)

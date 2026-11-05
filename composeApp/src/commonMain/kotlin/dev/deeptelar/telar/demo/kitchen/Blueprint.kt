@@ -274,7 +274,8 @@ data class Blueprint(
                     PieceKind.SECOND_OVEN -> "slip -> slip.copy(secondOven = true)"
                     else -> "it"
                 }
-            Statement(setOf(piece.id), "val ${piece.id} = node(\"${piece.id}\") { $work }")
+            val retry = if (piece.kind.asks) ", retry = Retry(attempts = 3)" else ""
+            Statement(setOf(piece.id), "val ${piece.id} = node(\"${piece.id}\"$retry) { $work }")
         }
 
     /** The arrows: an edge for each, and a conditional edge for the two of a sorter. A sorter that lacks one has none yet. */

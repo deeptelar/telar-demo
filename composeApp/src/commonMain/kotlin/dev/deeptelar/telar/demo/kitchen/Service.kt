@@ -10,16 +10,13 @@ import dev.deeptelar.telar.agent.TokenUsage
  * @property busyUntil the minute its chef is done with what it is doing.
  */
 data class Desk(
-    val tokens: TokenUsage = TokenUsage(0, 0),
+    val tokens: TokenUsage = TokenUsage(),
     val answers: Int = 0,
     val busyUntil: Int = 0,
 ) {
     /** This desk after one more answer of its model that used [usage]. */
     fun answered(usage: TokenUsage?): Desk = copy(tokens = tokens + usage, answers = answers + 1)
 }
-
-operator fun TokenUsage.plus(other: TokenUsage?): TokenUsage =
-    TokenUsage(inputTokens + (other?.inputTokens ?: 0), outputTokens + (other?.outputTokens ?: 0))
 
 /**
  * One thing that happened in a shift.
@@ -49,11 +46,11 @@ interface Service {
     val desks: Map<String, Desk>
     val log: List<Event>
 
-    val tokens: TokenUsage get() = desks.values.fold(TokenUsage(0, 0)) { sum, desk -> sum + desk.tokens }
+    val tokens: TokenUsage get() = desks.values.fold(TokenUsage()) { sum, desk -> sum + desk.tokens }
 
     val answers: Int get() = desks.values.sumOf { it.answers }
 
-    val spent: Int get() = tokens.inputTokens + tokens.outputTokens
+    val spent: Int get() = tokens.total
 
     val outOfTokens: Boolean get() = spent >= tokenBudget
 
@@ -95,7 +92,7 @@ fun Service.report(): String {
         "tokens   $spent (${tokens.inputTokens} read, ${tokens.outputTokens} written) in $answers answers",
         desks.entries
             .joinToString(prefix = "stations ") { (name, desk) ->
-                "$name ${desk.tokens.inputTokens + desk.tokens.outputTokens} tokens in ${desk.answers} answers"
+                "$name ${desk.tokens.total} tokens in ${desk.answers} answers"
             }.takeIf { desks.size > 1 },
         "kitchen  $end, ${score.wasted} ${if (score.wasted == 1) "pizza" else "pizzas"} wasted",
     ).joinToString("\n")

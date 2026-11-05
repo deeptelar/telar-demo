@@ -1,0 +1,2 @@
+{"version":1,"state":"{\"customer\":\"Ben\",\"message\":\"My pizza arrived cold. I want a refund.\"}","nextNodes":["prepare"],"step":0,"interruptedBefore":false}
+{"version":1,"state":"{\"customer\":\"Ben\",\"message\":\"My pizza arrived cold. I want a refund.\",\"refund\":12}","nextNodes":["pay"],"step":1,"interruptedBefore":true}

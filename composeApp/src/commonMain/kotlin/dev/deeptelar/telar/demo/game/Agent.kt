@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import dev.deeptelar.telar.CompiledGraph
+import dev.deeptelar.telar.Retry
 import dev.deeptelar.telar.START
 import dev.deeptelar.telar.StateGraph
 import dev.deeptelar.telar.agent.ChatMessage
@@ -47,7 +48,8 @@ object Agent {
     /**
      * The classic agent loop as a graph: the model answers or asks for tools, the tools run, and
      * their results go back to the model until it answers in plain text. `toolLoop` adds the two
-     * nodes and the edges between them; a tool that fails reaches the model as an error result.
+     * nodes and the edges between them; a tool that fails reaches the model as an error result, and
+     * a call to the model that fails is tried again before it fails the run.
      */
     fun graph(desk: Desk, tools: List<Tool> = deskTools): CompiledGraph<Ticket> = StateGraph<Ticket> {
         START then toolLoop(
@@ -66,6 +68,7 @@ object Agent {
             system = SYSTEM,
             modelNode = ASSISTANT,
             toolsNode = TOOLS,
+            retry = Retry(attempts = 3),
         )
     }.compile()
 
